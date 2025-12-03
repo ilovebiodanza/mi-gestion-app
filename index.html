@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Mi Gestión - Gestión Segura de Datos Personales</title>
+    <meta
+      name="description"
+      content="Aplicación web para almacenamiento seguro de información personal con cifrado de extremo a extremo"
+    />
+
+    <!-- Tailwind CSS (CDN para desarrollo) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Font Awesome Icons -->
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+    />
+
+    <!-- Favicon -->
+    <link rel="icon" href="assets/favicon.ico" />
+
+    <!-- CSS Personalizado -->
+    <link rel="stylesheet" href="/src/styles/main.css" />
+  </head>
+  <body class="bg-gray-50">
+    <div id="app">
+      <!-- La aplicación se cargará aquí -->
+      <div class="flex justify-center items-center h-screen">
+        <div class="text-center">
+          <div
+            class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto"
+          ></div>
+          <p class="mt-4 text-gray-600">Cargando Mi Gestión...</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- JavaScript principal -->
+    <script type="module" src="/src/app.js"></script>
+  </body>
+</html>
