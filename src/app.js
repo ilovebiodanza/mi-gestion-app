@@ -4,6 +4,8 @@ import { AuthForms } from "./components/AuthForms.js";
 import { PasswordPrompt } from "./components/PasswordPrompt.js";
 import { encryptionService } from "./services/encryption/index.js";
 import { EncryptionTest } from "./components/EncryptionTest.js";
+import { TemplateManager } from "./components/TemplateManager.js";
+import { templateService } from "./services/templates/index.js";
 
 console.log("Mi Gestión - Aplicación inicializada");
 
@@ -268,6 +270,13 @@ function showDashboard(user, appElement) {
                 </div>
                 <i class="fas fa-chevron-right text-gray-400"></i>
               </button>
+              <button id="manageTemplatesBtn" class="w-full flex items-center justify-between p-3 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition">
+                <div class="flex items-center">
+                  <i class="fas fa-layer-group text-indigo-600 mr-3"></i>
+                  <span class="font-medium">Gestionar Plantillas</span>
+                </div>
+                <i class="fas fa-chevron-right text-gray-400"></i>
+              </button>
             </div>
           </div>
           
@@ -324,6 +333,8 @@ function showDashboard(user, appElement) {
         encryptionTest.setupEventListeners();
       }
     }, 100);
+    // Inicializar servicio de plantillas con el usuario
+    templateService.initialize(user.uid);
   }
 
   // Configurar event listeners del dashboard
@@ -374,6 +385,70 @@ function setupDashboardListeners() {
       }
     });
   }
+  const manageTemplatesBtn = document.getElementById("manageTemplatesBtn");
+  if (manageTemplatesBtn) {
+    manageTemplatesBtn.addEventListener("click", () => {
+      showTemplateManager();
+    });
+  }
+}
+
+/**
+ * Mostrar gestor de plantillas
+ */
+function showTemplateManager() {
+  const appElement = document.getElementById("app");
+  if (!appElement) return;
+
+  const templateManager = new TemplateManager((templateId) => {
+    // Cuando se selecciona una plantilla
+    console.log("Plantilla seleccionada:", templateId);
+    // Aquí podrías redirigir a crear un nuevo documento con esta plantilla
+    alert(
+      `Plantilla ${templateId} seleccionada. Aquí crearías un nuevo documento.`
+    );
+  });
+
+  appElement.innerHTML = `
+    <div class="min-h-screen bg-gray-50">
+      <!-- Navbar -->
+      <nav class="bg-white shadow-sm">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div class="flex justify-between h-16">
+            <div class="flex items-center">
+              <button id="backToDashboard" class="mr-4 text-gray-600 hover:text-blue-600">
+                <i class="fas fa-arrow-left text-lg"></i>
+              </button>
+              <div class="flex items-center">
+                <i class="fas fa-layer-group text-xl text-indigo-600 mr-3"></i>
+                <h1 class="text-xl font-bold text-gray-800">Gestión de Plantillas</h1>
+              </div>
+            </div>
+          </div>
+        </div>
+      </nav>
+      
+      <!-- Contenido principal -->
+      <main class="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
+        <div id="templateManagerContainer"></div>
+      </main>
+    </div>
+  `;
+
+  // Cargar gestor de plantillas
+  const container = document.getElementById("templateManagerContainer");
+  if (container) {
+    container.innerHTML = templateManager.render();
+    templateManager.loadTemplates();
+  }
+
+  // Botón para volver al dashboard
+  document.getElementById("backToDashboard")?.addEventListener("click", () => {
+    const user = authService.getCurrentUser();
+    if (user) {
+      showDashboard(user, appElement);
+    }
+  });
 }
 
 // Exportar función init para uso externo (mantener este nombre)
