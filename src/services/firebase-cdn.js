@@ -13,6 +13,36 @@ class FirebaseCDNService {
     this.app = this.modules.app;
   }
 
+  // --- MÉTODOS DE LIMPIEZA DE DATOS ---
+  /**
+   * Limpia recursivamente un objeto o array, eliminando
+   * todas las propiedades con valor 'undefined'.
+   * Firestore no acepta 'undefined'.
+   */
+  _cleanObject(obj) {
+    if (typeof obj !== "object" || obj === null) {
+      return obj;
+    }
+
+    if (Array.isArray(obj)) {
+      // Limpiar elementos del array
+      return obj.map((item) => this._cleanObject(item));
+    }
+
+    const cleaned = {};
+    for (const key in obj) {
+      if (obj.hasOwnProperty(key)) {
+        const value = obj[key];
+        // Solo incluir propiedades si no son 'undefined'
+        if (value !== undefined) {
+          cleaned[key] = this._cleanObject(value);
+        }
+      }
+    }
+    return cleaned;
+  }
+  // ------------------------------------
+
   // Métodos de autenticación
   getAuth() {
     return this.auth;
@@ -60,10 +90,14 @@ class FirebaseCDNService {
     return this.modules.getDoc(ref);
   }
 
-  setDoc(ref, data) {
-    return this.modules.setDoc(ref, data);
-  }
+  setDoc(ref, data, options) {
+    // Añadir 'options' si se usa merge
+    // Limpieza automática antes de guardar en Firestore
+    const cleanedData = this._cleanObject(data); // <--- CAMBIO CLAVE
 
+    // Pasar el objeto de datos limpio a la función original de Firebase
+    return this.modules.setDoc(ref, cleanedData, options);
+  }
   doc(path) {
     return this.modules.doc(this.db, path);
   }

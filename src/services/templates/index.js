@@ -144,6 +144,8 @@ class TemplateService {
         `artifacts/${this.appId}/users/${this.userId}/metadata/templates`
       );
 
+      console.log(this.userTemplates);
+
       const templatesData = {
         userId: this.userId,
         appId: this.appId,
@@ -483,6 +485,49 @@ class TemplateService {
           category: "access",
           isSystemTemplate: true,
           version: "1.0",
+        },
+      },
+      {
+        id: "template_financial",
+        name: "Datos Financieros",
+        description: "Información bancaria y financiera",
+        icon: "💰",
+        color: "#F59E0B",
+        fields: [
+          {
+            id: "bank_name",
+            label: "Nombre del Banco",
+            type: "string",
+            required: true,
+            sensitive: false,
+            order: 1,
+          },
+          {
+            id: "account_number",
+            label: "Número de Cuenta",
+            type: "string",
+            required: true,
+            sensitive: true,
+            encryptionLevel: "high",
+            order: 2,
+          },
+          {
+            id: "account_type",
+            label: "Tipo de Cuenta",
+            type: "string",
+            required: false,
+            sensitive: false,
+            order: 3,
+          },
+        ],
+        settings: {
+          isSystemTemplate: true,
+          allowDuplicates: true,
+          maxEntries: 0,
+          category: "financial",
+          isSystemTemplate: true,
+          createdAt: "2024-01-01T00:00:00.000Z",
+          updatedAt: "2024-01-01T00:00:00.000Z",
         },
       },
     ];
