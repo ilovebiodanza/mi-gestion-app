@@ -528,6 +528,9 @@ export class TemplateManager {
                   <option value="car" ${
                     template?.settings?.category === "car" ? "selected" : ""
                   }>Vehículo</option>
+                  <option value="job" ${
+                    template?.settings?.category === "job" ? "selected" : ""
+                  }>Trabajo</option>
                   <option value="education" ${
                     template?.settings?.category === "education"
                       ? "selected"
@@ -570,7 +573,7 @@ export class TemplateManager {
         <button type="button" class="remove-field text-red-600 hover:text-red-800"><i class="fas fa-times"></i></button>
       </div>
       
-      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-4"> 
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-1">Nombre del Campo *</label>
           <input type="text" class="field-label w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition text-sm" value="${
@@ -603,13 +606,7 @@ export class TemplateManager {
             }>${getFieldTypeLabel("email")}</option>
           </select>
         </div>
-        <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">Orden</label>
-          <input type="number" class="field-order w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition text-sm" value="${
-            field?.order || index + 1
-          }" min="1" />
         </div>
-      </div>
       
       <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
         <div>
@@ -797,8 +794,8 @@ export class TemplateManager {
         id: fieldId,
         label: label.trim(),
         type: type,
-        order:
-          parseInt(fieldItem.querySelector(".field-order")?.value) || index + 1,
+        // CAMBIO CLAVE: El orden se asigna automáticamente basado en la posición del DOM
+        order: index + 1,
         placeholder: fieldItem.querySelector(".field-placeholder")?.value || "",
         required: fieldItem.querySelector(".field-required")?.checked || false,
         sensitive: isSensitive,
@@ -809,7 +806,9 @@ export class TemplateManager {
       });
     });
 
-    fields.sort((a, b) => a.order - b.order);
+    // La lista 'fields' ya está en el orden visual del DOM,
+    // por lo que no se necesita reordenación manual.
+    // fields.sort((a, b) => a.order - b.order); // REMOVIDO: No es necesario.
 
     return {
       name: name.trim(),
