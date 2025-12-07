@@ -35,6 +35,29 @@ class TemplateFormGenerator {
           field.placeholder || ""
         }" ${requiredAttr}>${currentValue}</textarea>`;
         break;
+      case "select": // <--- NUEVO CASO: SELECCIÓN SIMPLE
+        const optionsHtml = (field.options || [])
+          .map(
+            (option) => `
+          <option value="${option}" ${
+              currentValue === option ? "selected" : ""
+            }>
+            ${option}
+          </option>
+        `
+          )
+          .join("");
+
+        inputHtml = `
+          <select id="${field.id}" name="${
+          field.id
+        }" class="form-select" ${requiredAttr}>
+            <option value="" disabled ${
+              !currentValue ? "selected" : ""
+            }>Seleccionar...</option>
+            ${optionsHtml}
+          </select>`;
+        break;
       default:
         // Caso general para todos los input type="text", "number", "email", etc.
         inputHtml = `<input type="${inputType}" id="${field.id}" name="${

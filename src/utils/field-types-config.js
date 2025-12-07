@@ -20,6 +20,11 @@ const FIELD_TYPES = [
     inputType: "textarea",
   },
   {
+    value: "phone",
+    label: "Número de teléfono",
+    inputType: "tel",
+  },
+  {
     value: "number",
     label: "Número",
     inputType: "number",
@@ -45,6 +50,11 @@ const FIELD_TYPES = [
     inputType: "date",
   },
   {
+    value: "select", // <--- NUEVO VALOR
+    label: "Selección Simple",
+    inputType: "select", // <--- Clave para el generador de formularios
+  },
+  {
     value: "url",
     label: "URL",
     inputType: "url",
@@ -53,6 +63,11 @@ const FIELD_TYPES = [
     value: "email",
     label: "Email",
     inputType: "email",
+  },
+  {
+    value: "secret",
+    label: "Contraseña (Oculto)",
+    inputType: "password",
   },
 ];
 

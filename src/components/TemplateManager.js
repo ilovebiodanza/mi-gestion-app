@@ -577,7 +577,18 @@ export class TemplateManager {
               .join("")}
           </select>
         </div>
+
+        <div class="options-input-group ${
+          field?.type === "select" ? "" : "hidden"
+        } mt-4">
+          <label class="block text-sm font-medium text-gray-700 mb-1">Opciones (separadas por coma) *</label>
+          <textarea
+            class="field-options w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition text-sm"
+            placeholder="Ej: Banco, Tarjeta de Crédito, Inversión"
+          >${(field?.options || []).join(", ")}</textarea>
         </div>
+        
+      </div>
       
       <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
         <div>
@@ -639,8 +650,6 @@ export class TemplateManager {
       content.innerHTML = this.renderTemplateForm();
     }
     this.setupTemplateFormListeners();
-    // Inicializar drag and drop (asumiendo que tienes una librería como SortableJS)
-    // this.initializeSortable();
   }
 
   /**
@@ -693,9 +702,56 @@ export class TemplateManager {
       this.saveTemplate();
     });
 
+    // NUEVO: Listener para mostrar/ocultar el campo de opciones
+    fieldsContainer.addEventListener("change", (e) => {
+      if (e.target.classList.contains("field-type")) {
+        const fieldItem = e.target.closest(".field-item");
+        const optionsGroup = fieldItem.querySelector(".options-input-group");
+
+        if (e.target.value === "select") {
+          optionsGroup.classList.remove("hidden");
+          optionsGroup
+            .querySelector(".field-options")
+            .setAttribute("required", "required");
+        } else {
+          optionsGroup.classList.add("hidden");
+          optionsGroup
+            .querySelector(".field-options")
+            .removeAttribute("required");
+        }
+      }
+    });
+
     // Validation setup
     this.setupFieldValidation();
+    // Inicializar drag and drop (AHORA SÍ SE LLAMA)
+    this.initializeSortable(); // <--- DESCOMENTAR/AGREGAR ESTA LÍNEA
   }
+
+  /**
+   * Inicializa SortableJS para el drag-and-drop de campos.
+   * La librería Sortable está disponible globalmente a través del CDN.
+   */
+  initializeSortable() {
+    const container = document.getElementById("fieldsContainer");
+
+    // Verificar que el contenedor y la librería existan.
+    if (container && typeof Sortable !== "undefined") {
+      new Sortable(container, {
+        animation: 150, // Animación suave
+        handle: ".drag-handle", // Solo el icono de agarre permite arrastrar
+        ghostClass: "sortable-ghost", // Clase para el elemento fantasma (definida en main.css)
+        onEnd: (evt) => {
+          // Opcional: Puedes agregar lógica de guardado o feedback aquí si fuera necesario,
+          // pero el nuevo orden ya se reflejará en el DOM.
+          console.log(
+            `Campo movido de la posición ${evt.oldIndex} a ${evt.newIndex}`
+          );
+        },
+      });
+    }
+  }
+  // ...
 
   /**
    * Agrega un nuevo campo vacío al formulario
@@ -762,6 +818,23 @@ export class TemplateManager {
       const isSensitive =
         fieldItem.querySelector(".field-sensitive")?.checked || false;
 
+      // Capturar las opciones si el tipo es 'select'
+      let options = [];
+      if (type === "select") {
+        const optionsText = fieldItem.querySelector(".field-options").value;
+        if (!optionsText) {
+          // Manejar error de validación o simplemente omitir si no son requeridas
+          throw new Error(
+            `El campo '${fieldTitle}' de tipo Selección Simple requiere opciones.`
+          );
+        }
+        // Limpiar, trim y filtrar opciones vacías
+        options = optionsText
+          .split(",")
+          .map((o) => o.trim())
+          .filter((o) => o.length > 0);
+      }
+
       fields.push({
         id: fieldId,
         label: label.trim(),
@@ -775,6 +848,7 @@ export class TemplateManager {
           ? fieldItem.querySelector(".field-encryption-level")?.value ||
             "medium"
           : undefined,
+        ...(options.length > 0 && { options }),
       });
     });
 
@@ -938,12 +1012,39 @@ export class TemplateManager {
       });
   }
 
+  // src/components/TemplateManager.js -> renderFieldPreview(field)
+
   /**
    * Renderiza el HTML de un campo de formulario para la vista previa
    */
   renderFieldPreview(field) {
     // USO DE HELPER: getFieldTypeLabel
     const typeLabel = getFieldTypeLabel(field.type);
+
+    // NUEVA LÓGICA: Mostrar opciones para campos de selección
+    const isSelect = field.type === "select";
+    let fieldDisplay; // Aquí se almacena el HTML correcto
+
+    if (isSelect) {
+      const optionsList = (field.options || [])
+        .map(
+          (opt) =>
+            `<span class="text-xs bg-gray-200 text-gray-800 px-2 py-1 rounded">${opt}</span>`
+        )
+        .join(" ");
+
+      // Crea el DIV para mostrar las opciones del Select
+      fieldDisplay = `<div class="p-3 bg-gray-100 border border-gray-200 rounded-lg">${optionsList}</div>`;
+    } else {
+      // Crea el INPUT para todos los demás tipos
+      fieldDisplay = `
+            <input disabled class="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-700" 
+                   placeholder="${
+                     field.placeholder || "Campo de tipo: " + typeLabel
+                   }" 
+                   value="">
+        `;
+    }
 
     return `
         <div class="mb-4">
@@ -960,12 +1061,7 @@ export class TemplateManager {
                  : ""
              }
            </label>
-           <input disabled class="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-700" 
-                  placeholder="${
-                    field.placeholder || "Campo de tipo: " + typeLabel
-                  }" 
-                  value=""> 
-        </div>
+           ${fieldDisplay} </div>
       `;
   }
 
