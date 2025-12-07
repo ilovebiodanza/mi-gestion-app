@@ -1,5 +1,6 @@
 // src/services/templates/templates-form-generator.js
-
+// Importar el nuevo archivo de configuración
+import { getFieldTypeMetadata } from "../../utils/field-types-config.js"; // NUEVO IMPORT
 /**
  * Servicio para generar la representación HTML/DOM (formulario)
  * a partir de la definición de una plantilla (Fase IV).
@@ -14,22 +15,19 @@ class TemplateFormGenerator {
     const requiredAttr = field.required ? "required" : "";
     let inputHtml = "";
 
-    // Mapeo básico de tipos a input HTML
-    let inputType = "text";
-    switch (field.type) {
-      case "number":
-        inputType = "number";
-        break;
-      case "date":
-        inputType = "date";
-        break;
-      case "boolean":
+    // Obtener metadatos del tipo de campo para el input HTML (NUEVO)
+    const metadata = getFieldTypeMetadata(field.type);
+    let inputType = metadata?.inputType || "text";
+
+    // Manejo de casos especiales que no usan un input simple (MODIFICADO)
+    switch (inputType) {
+      case "checkbox":
         // Checkbox para boolean
         inputHtml = `<input type="checkbox" id="${field.id}" name="${
           field.id
         }" class="form-checkbox" ${currentValue ? "checked" : ""} />`;
         break;
-      case "text":
+      case "textarea":
         // Textarea para bloques largos
         inputHtml = `<textarea id="${field.id}" name="${
           field.id
@@ -37,16 +35,8 @@ class TemplateFormGenerator {
           field.placeholder || ""
         }" ${requiredAttr}>${currentValue}</textarea>`;
         break;
-      case "url":
-        inputType = "url";
-        break;
-      case "email":
-        inputType = "email";
-        break;
-      case "string":
       default:
-        // Input tipo texto para string, url, etc.
-        inputType = "text";
+        // Caso general para todos los input type="text", "number", "email", etc.
         inputHtml = `<input type="${inputType}" id="${field.id}" name="${
           field.id
         }" class="form-input" placeholder="${
@@ -54,16 +44,6 @@ class TemplateFormGenerator {
         }" value="${currentValue}" ${requiredAttr} />`;
         break;
     }
-
-    // Si no es un checkbox/textarea, usa la estructura de input simple
-    if (!inputHtml) {
-      inputHtml = `<input type="${inputType}" id="${field.id}" name="${
-        field.id
-      }" class="form-input" placeholder="${
-        field.placeholder || ""
-      }" value="${currentValue}" ${requiredAttr} />`;
-    }
-
     // Estructura envolvente del campo
     return `
       <div class="mb-4">

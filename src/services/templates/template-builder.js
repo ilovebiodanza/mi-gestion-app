@@ -1,17 +1,18 @@
 // src/services/templates/template-builder.js
 
+import { getFieldTypesConfig } from "../../utils/field-types-config.js";
+
 /**
  * Servicio para construir, definir y validar la estructura de plantillas y campos.
  * Contiene la lógica original de validaciones, pero sin getSystemTemplates().
  */
 class TemplateBuilder {
   /**
-   * Obtener tipos de campo válidos (solo los originales)
+   * Obtener tipos de campo válidos (ahora desde la configuración)
    */
   getValidFieldTypes() {
-    return ["string", "number", "boolean", "text", "date", "url", "email"];
+    return getFieldTypesConfig().map((type) => type.value); // MODIFICADO
   }
-
   /**
    * Generar ID automático a partir de la etiqueta
    */

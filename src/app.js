@@ -458,9 +458,24 @@ function showTemplateManager(user) {
   });
 }
 
+// Nueva función para el flujo de login exitoso
+async function initializePostLogin(user, password) {
+  // Inicializa el servicio de cifrado con la contraseña recién ingresada.
+  await encryptionService.initialize(password, user.uid);
+
+  // El onAuthStateChanged de Firebase se disparará,
+  // pero encontrará que encryptionService.isReady() es true,
+  // por lo que saltará el PasswordPrompt.
+}
+
 // Exportar función init para uso externo (mantener este nombre)
 export function initApp() {
   console.log("Aplicación inicializada desde export");
   // Llamar a la función interna
   initializeApplication();
 }
+
+window.app = {
+  // ... otras funciones
+  initializePostLogin, // <-- Asegúrate de exportar esto
+};

@@ -363,6 +363,9 @@ export class AuthForms {
       if (result.success) {
         console.log("✅ Login exitoso:", result.user.email);
         // El listener de authService manejará la transición al dashboard
+        if (window.app && window.app.initializePostLogin) {
+          window.app.initializePostLogin(userCredential.user, password);
+        }
       } else {
         // MOSTRAR ERROR EN UI
         this.showError(result.error || "Error en login");

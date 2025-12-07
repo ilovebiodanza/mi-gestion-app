@@ -16,6 +16,8 @@ import {
   getCategoryIcon,
   getFieldTypeLabel,
 } from "../utils/helpers.js";
+// Importar el nuevo archivo de configuración
+import { getFieldTypesConfig } from "../utils/field-types-config.js"; // NUEVO IMPORT
 
 export class TemplateManager {
   constructor(onTemplateSelect) {
@@ -539,6 +541,8 @@ export class TemplateManager {
     // Uso de generateFieldId para IDs consistentes o un fallback temporal
     const fieldId =
       field?.id || generateFieldId(field?.label || `campo_${index + 1}`, index);
+    // Obtener la lista de tipos de campo (NUEVO)
+    const fieldTypes = getFieldTypesConfig();
 
     return `
     <div class="field-item border border-gray-200 rounded-lg p-4 cursor-move" data-field-id="${fieldId}">
@@ -560,27 +564,17 @@ export class TemplateManager {
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-1">Tipo de Dato *</label>
           <select class="field-type w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition text-sm">
-            <option value="string" ${
-              field?.type === "string" ? "selected" : ""
-            }>${getFieldTypeLabel("string")}</option>
-            <option value="text" ${
-              field?.type === "text" ? "selected" : ""
-            }>${getFieldTypeLabel("text")}</option>
-            <option value="number" ${
-              field?.type === "number" ? "selected" : ""
-            }>${getFieldTypeLabel("number")}</option>
-            <option value="boolean" ${
-              field?.type === "boolean" ? "selected" : ""
-            }>${getFieldTypeLabel("boolean")}</option>
-            <option value="date" ${
-              field?.type === "date" ? "selected" : ""
-            }>${getFieldTypeLabel("date")}</option>
-            <option value="url" ${
-              field?.type === "url" ? "selected" : ""
-            }>${getFieldTypeLabel("url")}</option>
-            <option value="email" ${
-              field?.type === "email" ? "selected" : ""
-            }>${getFieldTypeLabel("email")}</option>
+            ${fieldTypes
+              .map(
+                (type) => `
+                          <option value="${type.value}" ${
+                  field?.type === type.value ? "selected" : ""
+                }>
+                            ${type.label}
+                          </option>
+                        `
+              )
+              .join("")}
           </select>
         </div>
         </div>

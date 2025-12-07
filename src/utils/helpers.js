@@ -1,5 +1,6 @@
 // src/utils/helpers.js
-
+// Importar el nuevo archivo de configuración
+import { getFieldTypeMetadata } from "./field-types-config.js"; // NUEVO IMPORT
 /**
  * Convierte una etiqueta de texto (ej: "Nombre Completo") en un ID válido (ej: "nombre_completo")
  */
@@ -61,17 +62,9 @@ export const getCategoryIcon = (category) => {
 };
 
 /**
- * Obtiene la etiqueta legible para un tipo de campo
+ * Obtiene la etiqueta legible para un tipo de campo (MODIFICADO)
  */
 export const getFieldTypeLabel = (type) => {
-  const labels = {
-    string: "Texto corto",
-    text: "Texto largo",
-    number: "Número",
-    boolean: "Sí/No",
-    date: "Fecha",
-    url: "URL",
-    email: "Email",
-  };
-  return labels[type] || type;
+  const metadata = getFieldTypeMetadata(type);
+  return metadata ? metadata.label : type;
 };
