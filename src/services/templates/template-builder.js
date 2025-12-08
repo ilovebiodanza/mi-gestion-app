@@ -4,15 +4,15 @@ import { getFieldTypesConfig } from "../../utils/field-types-config.js";
 
 /**
  * Servicio para construir, definir y validar la estructura de plantillas y campos.
- * Contiene la lógica original de validaciones, pero sin getSystemTemplates().
  */
 class TemplateBuilder {
   /**
-   * Obtener tipos de campo válidos (ahora desde la configuración)
+   * Obtener tipos de campo válidos
    */
   getValidFieldTypes() {
-    return getFieldTypesConfig().map((type) => type.value); // MODIFICADO
+    return getFieldTypesConfig().map((type) => type.value);
   }
+
   /**
    * Generar ID automático a partir de la etiqueta
    */
@@ -21,7 +21,6 @@ class TemplateBuilder {
       return `campo_${index + 1}`;
     }
 
-    // Lógica de sanitización para convertir etiqueta a ID válido
     const id = label
       .toLowerCase()
       .normalize("NFD")
@@ -50,14 +49,8 @@ class TemplateBuilder {
       );
     }
 
-    // Generar ID automático si no existe (se muta el objeto para consistencia)
     if (!field.id) {
       field.id = this.generateFieldId(field.label, index);
-    }
-
-    // Asegurar que el campo 'sensitive' esté presente
-    if (field.sensitive === undefined) {
-      field.sensitive = false;
     }
 
     return true;
@@ -78,7 +71,6 @@ class TemplateBuilder {
       throw new Error("La plantilla debe tener al menos un campo");
     }
 
-    // Validar cada campo
     templateData.fields.forEach((field, index) => {
       this.validateField(field, index);
     });
@@ -86,13 +78,6 @@ class TemplateBuilder {
     return true;
   }
 
-  /**
-   * **ELIMINADO:** La función getSystemTemplates() ha sido removida
-   * para cumplir con el requerimiento de que todas las plantillas
-   * sean definidas por el usuario.
-   */
-
-  // Métodos de Metadatos (extraídos del index.js original)
   getCategoryName(category) {
     const names = {
       personal: "Personal",

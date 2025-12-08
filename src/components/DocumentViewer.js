@@ -100,9 +100,7 @@ export class DocumentViewer {
         ) {
           displayValue = '<span class="text-gray-400 italic">Sin datos</span>';
         } else if (field.type === "date" && value) {
-          // NUEVO: Formato de fecha amigable (ej: 15 dic 2023)
           try {
-            // Dividir manualmente para evitar problemas de zona horaria (UTC vs Local)
             const [year, month, day] = value.split("-").map(Number);
             const dateObj = new Date(year, month - 1, day);
 
@@ -112,7 +110,7 @@ export class DocumentViewer {
               day: "numeric",
             }).format(dateObj);
           } catch (e) {
-            displayValue = value; // Fallback si falla el formato
+            displayValue = value;
           }
         } else if (field.type === "boolean") {
           displayValue = value
@@ -126,15 +124,6 @@ export class DocumentViewer {
         } else if (field.type === "percentage" && typeof value === "number") {
           displayValue = `${value}%`;
         } else if (field.type === "secret") {
-          displayValue = `
-          <div class="flex items-center group">
-            <span class="font-mono bg-gray-100 px-2 py-1 rounded">••••••••</span>
-            <button class="ml-2 text-blue-600 hover:text-blue-800 opacity-0 group-hover:opacity-100 transition-opacity copy-btn" data-value="${value}" title="Copiar valor">
-              <i class="fas fa-copy"></i>
-            </button>
-          </div>`;
-        } else if (field.type === "secret") {
-          // Lógica de Ver/Ocultar
           displayValue = `
           <div class="flex items-center gap-2">
             <span class="font-mono bg-gray-100 px-2 py-1 rounded secret-mask" data-value="${value}">••••••••</span>
@@ -157,7 +146,6 @@ export class DocumentViewer {
           displayValue = String(value);
         }
 
-        // Estilo para texto largo
         const isLongText = field.type === "text";
         const ddClass = isLongText
           ? "mt-2 whitespace-pre-wrap text-gray-800 bg-gray-50 p-3 rounded-md border border-gray-100 text-sm font-normal"
@@ -167,11 +155,6 @@ export class DocumentViewer {
         <div class="border-b border-gray-100 last:border-0 py-4">
           <dt class="text-sm font-medium text-gray-500 mb-1 flex items-center">
             ${label}
-            ${
-              field.sensitive
-                ? '<i class="fas fa-lock text-red-400 ml-2 text-xs" title="Campo Sensible"></i>'
-                : ""
-            }
           </dt>
           <dd class="${ddClass}">${displayValue}</dd>
         </div>
@@ -239,7 +222,6 @@ export class DocumentViewer {
     this.setupContentListeners();
   }
 
-  // Generar texto para WhatsApp (Formateado)
   async handleCopyToWhatsApp() {
     try {
       const currencyConfig = getLocalCurrency();
@@ -247,7 +229,7 @@ export class DocumentViewer {
       let waText = `*${this.document.metadata.title}*\n_${this.template.name}_\n\n`;
 
       this.template.fields.forEach((field, index) => {
-        if (index === 0) return; // Saltar el primer campo
+        if (index === 0) return;
 
         const label = `*${field.label}:*`;
         let value = this.decryptedData[field.id];
@@ -255,7 +237,6 @@ export class DocumentViewer {
         if (value === undefined || value === null || value === "") {
           value = "_N/A_";
         } else if (field.type === "date" && value) {
-          // NUEVO: Formato fecha en WhatsApp
           try {
             const [year, month, day] = value.split("-").map(Number);
             const dateObj = new Date(year, month - 1, day);
@@ -369,29 +350,26 @@ export class DocumentViewer {
     document
       .getElementById("whatsappDocBtn")
       ?.addEventListener("click", () => this.handleCopyToWhatsApp());
+
     const viewerContainer = document.getElementById(
       "documentViewerPlaceholder"
     );
 
     viewerContainer.querySelectorAll(".toggle-secret-btn").forEach((btn) => {
       btn.addEventListener("click", (e) => {
-        // Encontrar el span hermano y el icono dentro del botón
         const button = e.currentTarget;
         const span = button.parentElement.querySelector(".secret-mask");
         const icon = button.querySelector("i");
 
-        // Obtener el valor real
         const realValue = span.dataset.value;
         const isHidden = span.textContent === "••••••••";
 
         if (isHidden) {
-          // MOSTRAR: Ponemos el valor real y cambiamos icono a "ojo tachado"
           span.textContent = realValue;
           icon.classList.remove("fa-eye");
           icon.classList.add("fa-eye-slash");
-          span.classList.add("text-blue-700", "font-bold"); // Resaltar que está visible
+          span.classList.add("text-blue-700", "font-bold");
         } else {
-          // OCULTAR: Volvemos a poner puntos y el icono de "ojo"
           span.textContent = "••••••••";
           icon.classList.remove("fa-eye-slash");
           icon.classList.add("fa-eye");

@@ -1,7 +1,7 @@
 // src/services/templates/index.js
 
 import { TemplateStorage } from "./template-storage.js";
-import { templateBuilder } from "./template-builder.js"; // Importamos el builder AQUÍ, no en la vista
+import { templateBuilder } from "./template-builder.js";
 
 class TemplateService {
   constructor() {
@@ -26,31 +26,33 @@ class TemplateService {
         this.userTemplates = [];
         return;
       }
+
       let templates = await this.storage.loadFromFirestore();
+
       if (templates === null) {
         templates = await this.storage.loadFromLocalStorage();
       }
-      this.userTemplates = templates || [];
 
-      if (templates && templates.length === 0) {
-        // Inicializar almacenamiento si está vacío
-        await this.storage.saveToFirestore(this.userTemplates);
+      if (!templates || templates.length === 0) {
+        console.log(
+          "⚠️ No hay plantillas. Inicializando con valores por defecto..."
+        );
+        templates = this.getDefaultTemplates();
+        await this.storage.saveToFirestore(templates);
       }
+
+      this.userTemplates = templates;
     } catch (error) {
       console.error("❌ Error al cargar plantillas:", error);
-      this.userTemplates = [];
+      this.userTemplates = this.getDefaultTemplates();
     }
   }
-
-  // --- CRUD con Validación Centralizada ---
 
   async createTemplate(templateData) {
     if (!this.userId) throw new Error("Usuario no autenticado");
 
-    // 1. VALIDACIÓN: Usando templateBuilder internamente
     templateBuilder.validateTemplateData(templateData);
 
-    // 2. Construcción del objeto
     const newTemplate = {
       id: `template_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       userId: this.userId,
@@ -62,7 +64,7 @@ class TemplateService {
         maxEntries: 0,
         category: "custom",
         ...templateData.settings,
-        isSystemTemplate: false, // Siempre falso para creadas por usuario
+        isSystemTemplate: false,
       },
     };
 
@@ -75,17 +77,13 @@ class TemplateService {
     const index = this.userTemplates.findIndex((t) => t.id === templateId);
     if (index === -1) throw new Error("Plantilla no encontrada");
 
-    // 1. Fusión temporal para validación (Current + Updates)
     const mergedTemplate = {
       ...this.userTemplates[index],
       ...updates,
     };
 
-    // 2. VALIDACIÓN: Validar el objeto resultante completo
-    // Esto evita que una actualización parcial deje la plantilla inválida
     templateBuilder.validateTemplateData(mergedTemplate);
 
-    // 3. Aplicar actualización
     this.userTemplates[index] = {
       ...mergedTemplate,
       updatedAt: new Date().toISOString(),
@@ -107,10 +105,11 @@ class TemplateService {
     return { success: true, message: "Plantilla eliminada" };
   }
 
-  // --- Métodos de Consulta ---
-
   async getUserTemplates() {
     if (!this.isInitialized) throw new Error("Servicio no inicializado");
+    if (this.userTemplates.length === 0) {
+      return this.getDefaultTemplates();
+    }
     return this.userTemplates;
   }
 
@@ -119,23 +118,157 @@ class TemplateService {
   }
 
   async getCategories() {
-    // Aquí podrías usar los helpers si quisieras enriquecer la data,
-    // pero generalmente devolvemos datos crudos o agregados simples.
     const templates = await this.getUserTemplates();
-    // Importamos dinámicamente o usamos lógica simple para agrupar
     const categoriesSet = [
       ...new Set(templates.map((t) => t.settings.category)),
     ];
 
-    // NOTA: El mapeo de nombres bonitos se hace en el Frontend con helpers.js
-    // Aquí solo devolvemos los IDs de categorías y conteos.
     return categoriesSet.map((cat) => ({
       id: cat,
       count: templates.filter((t) => t.settings.category === cat).length,
     }));
   }
 
-  // --- Sincronización ---
+  // --- Plantillas por Defecto (SIN ATRIBUTO SENSIBLE) ---
+  getDefaultTemplates() {
+    return [
+      {
+        id: "tpl_default_access",
+        name: "Accesos y Contraseñas",
+        description: "Gestión segura de credenciales",
+        icon: "🔐",
+        color: "#F59E0B",
+        settings: { category: "access", allowDuplicates: true },
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        fields: [
+          {
+            id: "f_site",
+            label: "Sitio / Aplicación",
+            type: "string",
+            order: 1,
+            required: true,
+          },
+          {
+            id: "f_user",
+            label: "Usuario / Email",
+            type: "string",
+            order: 2,
+            required: false,
+          },
+          {
+            id: "f_pass",
+            label: "Contraseña",
+            type: "secret",
+            order: 3,
+            required: true,
+          },
+          {
+            id: "f_url",
+            label: "URL de acceso",
+            type: "url",
+            order: 4,
+            required: false,
+          },
+          {
+            id: "f_notes",
+            label: "Notas adicionales",
+            type: "text",
+            order: 5,
+            required: false,
+          },
+        ],
+      },
+      {
+        id: "tpl_default_health",
+        name: "Historial Médico",
+        description: "Registro básico de salud",
+        icon: "⚕️",
+        color: "#EF4444",
+        settings: { category: "health", allowDuplicates: false },
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        fields: [
+          {
+            id: "f_blood",
+            label: "Tipo de Sangre",
+            type: "string",
+            order: 1,
+            required: false,
+          },
+          {
+            id: "f_allergies",
+            label: "Alergias",
+            type: "text",
+            order: 2,
+            required: false,
+          },
+          {
+            id: "f_meds",
+            label: "Medicación Actual",
+            type: "text",
+            order: 3,
+            required: false,
+          },
+          {
+            id: "f_contact",
+            label: "Contacto Emergencia",
+            type: "string",
+            order: 4,
+            required: true,
+          },
+        ],
+      },
+      {
+        id: "tpl_default_finance",
+        name: "Tarjeta de Crédito",
+        description: "Datos de tarjetas bancarias",
+        icon: "💳",
+        color: "#10B981",
+        settings: { category: "financial", allowDuplicates: true },
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        fields: [
+          {
+            id: "f_bank",
+            label: "Banco / Emisor",
+            type: "string",
+            order: 1,
+            required: true,
+          },
+          {
+            id: "f_number",
+            label: "Número de Tarjeta",
+            type: "secret",
+            order: 2,
+            required: true,
+          },
+          {
+            id: "f_exp",
+            label: "Vencimiento (MM/AA)",
+            type: "string",
+            order: 3,
+            required: true,
+          },
+          {
+            id: "f_cvv",
+            label: "CVV",
+            type: "secret",
+            order: 4,
+            required: true,
+          },
+          {
+            id: "f_pin",
+            label: "PIN Cajero",
+            type: "secret",
+            order: 5,
+            required: false,
+          },
+        ],
+      },
+    ];
+  }
+
   async checkSyncStatus() {
     return this.storage.checkSyncStatus(this.userTemplates);
   }

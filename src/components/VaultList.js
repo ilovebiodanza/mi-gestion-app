@@ -1,35 +1,78 @@
 // src/components/VaultList.js
 import { documentService } from "../services/documents/index.js";
+import { templateService } from "../services/templates/index.js"; // Importamos para obtener nombres/iconos
 
 export class VaultList {
   constructor(onDocumentSelect, onNewDocument) {
-    this.onDocumentSelect = onDocumentSelect; // Callback para abrir/descifrar
-    this.onNewDocument = onNewDocument; // Callback para ir a crear uno nuevo
+    this.onDocumentSelect = onDocumentSelect;
+    this.onNewDocument = onNewDocument;
     this.documents = [];
+    this.templatesMap = {}; // Mapa para acceso rápido a info de plantillas (nombre, icono)
     this.isLoading = false;
+    this.currentFilter = "all"; // 'all' o templateId
   }
 
   /**
-   * Cargar documentos desde el servicio
+   * Cargar documentos y plantillas
    */
   async loadDocuments() {
     this.isLoading = true;
-    this.render(); // Mostrar spinner
+    this.render();
 
     try {
-      this.documents = await documentService.getAllDocuments();
+      // Cargamos documentos y plantillas en paralelo
+      const [docs, templates] = await Promise.all([
+        documentService.getAllDocuments(),
+        templateService.getUserTemplates(),
+      ]);
+
+      this.documents = docs;
+
+      // Crear un mapa de plantillas para búsqueda rápida por ID { id: {name, icon, color} }
+      this.templatesMap = templates.reduce((acc, t) => {
+        acc[t.id] = t;
+        return acc;
+      }, {});
     } catch (error) {
       console.error("Error cargando vault:", error);
       this.error = "No se pudieron cargar tus documentos seguros.";
     } finally {
       this.isLoading = false;
-      this.render(); // Mostrar lista o vacío
+      this.render();
     }
+  }
+
+  /**
+   * Obtener lista de filtros (Plantillas que tienen al menos un documento)
+   */
+  getActiveFilters() {
+    // Contar documentos por plantilla
+    const counts = this.documents.reduce((acc, doc) => {
+      const tid = doc.templateId;
+      acc[tid] = (acc[tid] || 0) + 1;
+      return acc;
+    }, {});
+
+    // Convertir a array para renderizar
+    return Object.keys(counts).map((templateId) => {
+      const template = this.templatesMap[templateId] || {
+        name: "Desconocido",
+        icon: "❓",
+        color: "#gray",
+      };
+      return {
+        id: templateId,
+        name: template.name,
+        icon: template.icon,
+        color: template.color,
+        count: counts[templateId],
+      };
+    });
   }
 
   render() {
     const container = document.getElementById("vaultListContainer");
-    if (!container) return; // Guard para seguridad
+    if (!container) return;
 
     if (this.isLoading) {
       container.innerHTML = `
@@ -62,21 +105,78 @@ export class VaultList {
       return;
     }
 
-    // Renderizar lista de documentos
+    // Filtrar documentos según selección
+    const filteredDocs =
+      this.currentFilter === "all"
+        ? this.documents
+        : this.documents.filter((d) => d.templateId === this.currentFilter);
+
+    // Renderizar Filtros y Lista
     container.innerHTML = `
-      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 animate-fade-in">
-        ${this.documents.map((doc) => this.renderDocumentCard(doc)).join("")}
+      <div class="mb-6 overflow-x-auto pb-2 scrollbar-hide">
+        <div class="flex space-x-2">
+            ${this.renderFilters()}
+        </div>
       </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 animate-fade-in">
+        ${filteredDocs.map((doc) => this.renderDocumentCard(doc)).join("")}
+      </div>
+      
+      ${
+        filteredDocs.length === 0
+          ? `
+        <div class="text-center py-8 text-gray-500 bg-gray-50 rounded-lg border border-dashed border-gray-300">
+            No hay documentos en esta categoría.
+        </div>
+      `
+          : ""
+      }
     `;
 
-    // Asignar listeners a las tarjetas
-    container.querySelectorAll(".vault-card").forEach((card) => {
-      card.addEventListener("click", (e) => {
-        // Evitar disparar si se hace click en acciones secundarias (futuras)
-        const docId = card.dataset.id;
-        this.onDocumentSelect(docId);
-      });
-    });
+    this.setupListeners(container);
+  }
+
+  renderFilters() {
+    const activeFilters = this.getActiveFilters();
+
+    // Botón "Todos"
+    let html = `
+      <button class="filter-btn flex items-center px-4 py-2 rounded-full text-sm font-medium transition whitespace-nowrap border ${
+        this.currentFilter === "all"
+          ? "bg-gray-800 text-white border-gray-800 shadow-md"
+          : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"
+      }" data-filter="all">
+        <span class="mr-2">📂</span> Todos (${this.documents.length})
+      </button>
+    `;
+
+    // Botones por Plantilla
+    html += activeFilters
+      .map(
+        (f) => `
+      <button class="filter-btn flex items-center px-4 py-2 rounded-full text-sm font-medium transition whitespace-nowrap border ${
+        this.currentFilter === f.id
+          ? "text-white shadow-md transform scale-105"
+          : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"
+      }" 
+      style="${
+        this.currentFilter === f.id
+          ? `background-color: ${f.color}; border-color: ${f.color};`
+          : ""
+      }"
+      data-filter="${f.id}">
+        <span class="mr-2">${f.icon}</span> ${
+          f.name
+        } <span class="ml-2 opacity-75 text-xs bg-black bg-opacity-10 px-1.5 rounded-full">${
+          f.count
+        }</span>
+      </button>
+    `
+      )
+      .join("");
+
+    return html;
   }
 
   renderEmptyState() {
@@ -98,12 +198,16 @@ export class VaultList {
   }
 
   renderDocumentCard(doc) {
-    // Formatear fecha
     const date = new Date(doc.metadata.updatedAt).toLocaleDateString("es-ES", {
       year: "numeric",
       month: "short",
       day: "numeric",
     });
+
+    // Obtener color e icono frescos de la plantilla (por si cambiaron)
+    const template = this.templatesMap[doc.templateId] || {};
+    const icon = template.icon || doc.metadata.icon || "📄";
+    const color = template.color || "#3B82F6";
 
     return `
       <div class="vault-card bg-white rounded-lg border border-gray-200 shadow-sm hover:shadow-md hover:border-blue-300 transition-all cursor-pointer p-4 group" data-id="${
@@ -112,16 +216,17 @@ export class VaultList {
         <div class="flex items-start justify-between">
           <div class="flex items-center space-x-3">
             <div class="flex-shrink-0">
-              <span class="inline-flex items-center justify-center h-10 w-10 rounded-lg bg-blue-50 text-blue-600 text-xl">
-                ${doc.metadata.icon || "📄"}
+              <span class="inline-flex items-center justify-center h-10 w-10 rounded-lg text-xl" 
+                    style="background-color: ${color}20; color: ${color}">
+                ${icon}
               </span>
             </div>
             <div class="min-w-0 flex-1">
-              <p class="text-sm font-medium text-gray-900 truncate">
+              <p class="text-sm font-bold text-gray-900 truncate">
                 ${doc.metadata.title || "Sin Título"}
               </p>
               <p class="text-xs text-gray-500 truncate">
-                Modificado: ${date}
+                ${template.name || "Documento"} • ${date}
               </p>
             </div>
           </div>
@@ -137,5 +242,24 @@ export class VaultList {
         </div>
       </div>
     `;
+  }
+
+  setupListeners(container) {
+    // Listeners de Filtros
+    container.querySelectorAll(".filter-btn").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        const filter = e.currentTarget.dataset.filter;
+        this.currentFilter = filter;
+        this.render(); // Re-renderizar solo la vista (no recarga datos de red)
+      });
+    });
+
+    // Listeners de Tarjetas
+    container.querySelectorAll(".vault-card").forEach((card) => {
+      card.addEventListener("click", () => {
+        const docId = card.dataset.id;
+        this.onDocumentSelect(docId);
+      });
+    });
   }
 }

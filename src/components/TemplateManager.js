@@ -1,37 +1,24 @@
 // src/components/TemplateManager.js
 
-/**
- * Componente para gestionar plantillas personalizadas (Fase IV)
- * - Muestra la lista de plantillas.
- * - Permite Crear/Editar plantillas mediante formularios.
- * - Centraliza las operaciones CRUD, delegando la lógica de negocio a templateService.
- * - Utiliza helpers.js para las funciones de formateo (ej: generar ID, nombres de categoría, ICONOS).
- */
-
 import { templateService } from "../services/templates/index.js";
-// Importamos helpers que no tienen lógica de negocio ni dependen del estado.
 import {
   generateFieldId,
   getCategoryName,
   getCategoryIcon,
   getFieldTypeLabel,
 } from "../utils/helpers.js";
-// Importar el nuevo archivo de configuración
-import { getFieldTypesConfig } from "../utils/field-types-config.js"; // NUEVO IMPORT
+import { getFieldTypesConfig } from "../utils/field-types-config.js";
 
 export class TemplateManager {
   constructor(onTemplateSelect) {
     this.onTemplateSelect = onTemplateSelect;
-    this.currentView = "list"; // 'list', 'create', 'edit', 'preview'
+    this.currentView = "list";
     this.editingTemplate = null;
-    this.tempFormData = null; // Guardar datos del formulario temporalmente (para Preview)
-    this.allTemplates = []; // Lista de todas las plantillas cargadas
-    this.currentCategory = "all"; // Categoría actualmente seleccionada para filtrar
+    this.tempFormData = null;
+    this.allTemplates = [];
+    this.currentCategory = "all";
   }
 
-  /**
-   * Renderizar componente principal
-   */
   render() {
     return `
       <div class="bg-white rounded-xl shadow-lg overflow-hidden">
@@ -60,9 +47,6 @@ export class TemplateManager {
     `;
   }
 
-  /**
-   * Renderizar estado de carga
-   */
   renderLoading() {
     return `
       <div class="flex justify-center py-12">
@@ -74,13 +58,7 @@ export class TemplateManager {
     `;
   }
 
-  /**
-   * Renderizar lista de plantillas
-   */
   renderTemplateList(templates, categories) {
-    const systemTemplates = templates.filter(
-      (t) => t.settings?.isSystemTemplate
-    );
     const customTemplates = templates.filter(
       (t) => !t.settings?.isSystemTemplate
     );
@@ -154,12 +132,8 @@ export class TemplateManager {
     `;
   }
 
-  /**
-   * Renderizar tarjeta de plantilla
-   */
   renderTemplateCard(template) {
     const fieldCount = template.fields.length;
-    const sensitiveCount = template.fields.filter((f) => f.sensitive).length;
 
     if (!template.id) {
       console.error("Template sin ID:", template);
@@ -187,15 +161,7 @@ export class TemplateManager {
               }</p>
             </div>
           </div>
-          ${
-            template.settings?.isSystemTemplate
-              ? `
-            <span class="bg-blue-100 text-blue-800 text-xs font-medium px-2 py-1 rounded">
-              Sistema
-            </span>
-          `
-              : `
-            <div class="flex space-x-1">
+          <div class="flex space-x-1">
               <button type="button" class="edit-template text-gray-400 hover:text-blue-600 p-1 rounded hover:bg-blue-50 transition" 
                       data-template-id="${template.id}"
                       title="Editar plantilla">
@@ -206,9 +172,7 @@ export class TemplateManager {
                       title="Eliminar plantilla">
                 <i class="fas fa-trash"></i>
               </button>
-            </div>
-          `
-          }
+          </div>
         </div>
         
         <div class="space-y-2">
@@ -217,16 +181,6 @@ export class TemplateManager {
               <i class="fas fa-list-ul mr-1"></i>
               ${fieldCount} campo${fieldCount !== 1 ? "s" : ""}
             </span>
-            ${
-              sensitiveCount > 0
-                ? `
-              <span class="text-red-600">
-                <i class="fas fa-lock mr-1"></i>
-                ${sensitiveCount} sensible${sensitiveCount !== 1 ? "s" : ""}
-              </span>
-            `
-                : ""
-            }
           </div>
           
           <div class="flex flex-wrap gap-1">
@@ -262,16 +216,12 @@ export class TemplateManager {
   `;
   }
 
-  /**
-   * Cargar y renderizar la vista de lista
-   */
   async loadTemplates() {
     try {
       const content = document.getElementById("templateContent");
       if (!content) return;
       content.innerHTML = this.renderLoading();
 
-      // Sincronización
       const syncStatus = await templateService.checkSyncStatus();
       if (syncStatus.needsSync && syncStatus.cloudCount > 0) {
         this.showMessage(
@@ -292,12 +242,10 @@ export class TemplateManager {
         }, 100);
       }
 
-      // 1. Cargar y almacenar todas las plantillas
       this.allTemplates = await templateService.getUserTemplates();
       const categories = await templateService.getCategories();
-      this.currentCategory = "all"; // Mostrar todas por defecto al cargar
+      this.currentCategory = "all";
 
-      // 2. Renderizar la lista
       content.innerHTML = this.renderTemplateList(
         this.allTemplates,
         categories
@@ -309,16 +257,12 @@ export class TemplateManager {
     }
   }
 
-  /**
-   * Configurar listeners para la vista de lista
-   */
   setupTemplateListListeners() {
     const newTemplateBtn = document.getElementById("btnNewTemplate");
     if (newTemplateBtn)
       newTemplateBtn.addEventListener("click", () => this.showTemplateForm());
 
     document.querySelectorAll(".category-filter").forEach((btn) => {
-      // El filtrado es solo visual/de mensaje en esta implementación
       btn.addEventListener("click", (e) =>
         this.filterTemplatesByCategory(e.currentTarget.dataset.category)
       );
@@ -326,7 +270,6 @@ export class TemplateManager {
 
     const templateContent = document.getElementById("templateContent");
     if (templateContent) {
-      // Usamos delegación de eventos en el contenedor principal
       templateContent.addEventListener("click", (e) => {
         const target = e.target.closest("button, .template-card");
         if (!target) return;
@@ -343,31 +286,17 @@ export class TemplateManager {
         } else if (e.target.closest(".delete-template")) {
           if (id) this.deleteTemplate(id);
           e.stopPropagation();
-        } else if (e.target.closest("#syncTemplates")) {
-          templateService
-            .syncTemplates()
-            .then((res) => {
-              if (res.synced) {
-                this.showSuccess(res.message);
-                setTimeout(() => this.loadTemplates(), 1000);
-              } else this.showError("Error de sincronización: " + res.error);
-            })
-            .catch((e) => this.showError("Error: " + e.message));
         } else if (
           templateCard &&
           !e.target.closest("button") &&
           !e.target.closest("a")
         ) {
-          // Clic en la tarjeta, pero no en un botón (para preview)
           if (id) this.showTemplatePreview(id);
         }
       });
     }
   }
 
-  /**
-   * Renderizar el formulario para crear/editar una plantilla
-   */
   renderTemplateForm(template = null) {
     const isEditing = !!template;
     const fieldsHtml = template?.fields
@@ -379,7 +308,6 @@ export class TemplateManager {
     const currentCategory = template?.settings?.category || "custom";
     const initialIcon = template?.icon || getCategoryIcon(currentCategory);
 
-    // Opciones de categoría actualizadas (basadas en helpers.js)
     const categoryOptions = [
       { value: "custom", label: "Personalizado" },
       { value: "personal", label: "Personal" },
@@ -534,14 +462,10 @@ export class TemplateManager {
     `;
   }
 
-  /**
-   * Renderizar el formulario para un campo individual
-   */
   renderFieldForm(field = null, index = 0) {
-    // Uso de generateFieldId para IDs consistentes o un fallback temporal
     const fieldId =
       field?.id || generateFieldId(field?.label || `campo_${index + 1}`, index);
-    // Obtener la lista de tipos de campo (NUEVO)
+
     const fieldTypes = getFieldTypesConfig();
 
     return `
@@ -561,23 +485,25 @@ export class TemplateManager {
             field?.label || ""
           }" placeholder="Ej: Nombre Completo" required />
         </div>
+        
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-1">Tipo de Dato *</label>
           <select class="field-type w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition text-sm">
             ${fieldTypes
               .map(
                 (type) => `
-                          <option value="${type.value}" ${
+              <option value="${type.value}" ${
                   field?.type === type.value ? "selected" : ""
                 }>
-                            ${type.label}
-                          </option>
-                        `
+                ${type.label}
+              </option>
+            `
               )
               .join("")}
           </select>
         </div>
-
+        </div>
+        
         <div class="options-input-group ${
           field?.type === "select" ? "" : "hidden"
         } mt-4">
@@ -587,8 +513,6 @@ export class TemplateManager {
             placeholder="Ej: Banco, Tarjeta de Crédito, Inversión"
           >${(field?.options || []).join(", ")}</textarea>
         </div>
-        
-      </div>
       
       <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
         <div>
@@ -604,34 +528,12 @@ export class TemplateManager {
             } />
             <label class="ml-2 text-sm text-gray-700">Obligatorio</label>
           </div>
-          <div class="flex items-center">
-            <input type="checkbox" class="field-sensitive h-4 w-4 text-red-600 border-gray-300 rounded" ${
-              field?.sensitive ? "checked" : ""
-            } />
-            <label class="ml-2 text-sm text-gray-700">Sensible</label>
-          </div>
-        </div>
-        <div class="encryption-level-container ${
-          field?.sensitive ? "" : "hidden"
-        }">
-          <label class="block text-sm font-medium text-gray-700 mb-1">Nivel cifrado</label>
-          <select class="field-encryption-level w-full px-3 py-2 border border-gray-300 rounded text-sm">
-            <option value="medium" ${
-              field?.encryptionLevel === "medium" ? "selected" : ""
-            }>Medio</option>
-            <option value="high" ${
-              field?.encryptionLevel === "high" ? "selected" : ""
-            }>Alto</option>
-          </select>
         </div>
       </div>
     </div>
       `;
   }
 
-  /**
-   * Mostrar el formulario de creación/edición
-   */
   async showTemplateForm(templateId = null) {
     const content = document.getElementById("templateContent");
     if (!content) return;
@@ -641,7 +543,6 @@ export class TemplateManager {
       this.tempFormData = null;
       content.innerHTML = this.renderTemplateForm(this.editingTemplate);
     } else if (this.tempFormData) {
-      // Si hay datos temporales (viniendo de preview), cargarlos
       this.editingTemplate = null;
       content.innerHTML = this.renderTemplateForm(this.tempFormData);
     } else {
@@ -652,26 +553,19 @@ export class TemplateManager {
     this.setupTemplateFormListeners();
   }
 
-  /**
-   * Configurar listeners para el formulario de plantilla
-   */
   setupTemplateFormListeners() {
-    // CAMBIO: Listener para actualizar el icono al cambiar la categoría
     const categorySelect = document.getElementById("templateCategory");
     const iconInput = document.getElementById("templateIcon");
     if (categorySelect && iconInput) {
       categorySelect.addEventListener("change", (e) => {
-        // Usar la función helper para obtener el icono sugerido
         iconInput.value = getCategoryIcon(e.target.value);
       });
     }
 
-    // Add Field
     document
       .getElementById("addFieldBtn")
       ?.addEventListener("click", () => this.addField());
 
-    // Remove Field & Sensitive Toggle (Delegación de eventos para campos dinámicos)
     const fieldsContainer = document.getElementById("fieldsContainer");
     if (fieldsContainer) {
       fieldsContainer.addEventListener("click", (e) => {
@@ -680,17 +574,27 @@ export class TemplateManager {
           this.updateNoFieldsMessage();
         }
       });
+
       fieldsContainer.addEventListener("change", (e) => {
-        if (e.target.closest(".field-sensitive")) {
-          e.target
-            .closest(".field-item")
-            .querySelector(".encryption-level-container")
-            ?.classList.toggle("hidden", !e.target.checked);
+        if (e.target.classList.contains("field-type")) {
+          const fieldItem = e.target.closest(".field-item");
+          const optionsGroup = fieldItem.querySelector(".options-input-group");
+
+          if (e.target.value === "select") {
+            optionsGroup.classList.remove("hidden");
+            optionsGroup
+              .querySelector(".field-options")
+              .setAttribute("required", "required");
+          } else {
+            optionsGroup.classList.add("hidden");
+            optionsGroup
+              .querySelector(".field-options")
+              .removeAttribute("required");
+          }
         }
       });
     }
 
-    // Actions
     document
       .getElementById("cancelTemplate")
       ?.addEventListener("click", () => this.loadTemplates());
@@ -702,60 +606,10 @@ export class TemplateManager {
       this.saveTemplate();
     });
 
-    // NUEVO: Listener para mostrar/ocultar el campo de opciones
-    fieldsContainer.addEventListener("change", (e) => {
-      if (e.target.classList.contains("field-type")) {
-        const fieldItem = e.target.closest(".field-item");
-        const optionsGroup = fieldItem.querySelector(".options-input-group");
-
-        if (e.target.value === "select") {
-          optionsGroup.classList.remove("hidden");
-          optionsGroup
-            .querySelector(".field-options")
-            .setAttribute("required", "required");
-        } else {
-          optionsGroup.classList.add("hidden");
-          optionsGroup
-            .querySelector(".field-options")
-            .removeAttribute("required");
-        }
-      }
-    });
-
-    // Validation setup
     this.setupFieldValidation();
-    // Inicializar drag and drop (AHORA SÍ SE LLAMA)
-    this.initializeSortable(); // <--- DESCOMENTAR/AGREGAR ESTA LÍNEA
+    this.initializeSortable();
   }
 
-  /**
-   * Inicializa SortableJS para el drag-and-drop de campos.
-   * La librería Sortable está disponible globalmente a través del CDN.
-   */
-  initializeSortable() {
-    const container = document.getElementById("fieldsContainer");
-
-    // Verificar que el contenedor y la librería existan.
-    if (container && typeof Sortable !== "undefined") {
-      new Sortable(container, {
-        animation: 150, // Animación suave
-        handle: ".drag-handle", // Solo el icono de agarre permite arrastrar
-        ghostClass: "sortable-ghost", // Clase para el elemento fantasma (definida en main.css)
-        onEnd: (evt) => {
-          // Opcional: Puedes agregar lógica de guardado o feedback aquí si fuera necesario,
-          // pero el nuevo orden ya se reflejará en el DOM.
-          console.log(
-            `Campo movido de la posición ${evt.oldIndex} a ${evt.newIndex}`
-          );
-        },
-      });
-    }
-  }
-  // ...
-
-  /**
-   * Agrega un nuevo campo vacío al formulario
-   */
   addField() {
     const container = document.getElementById("fieldsContainer");
     if (container) {
@@ -765,13 +619,9 @@ export class TemplateManager {
         this.renderFieldForm(null, count)
       );
       document.getElementById("noFieldsMessage")?.classList.add("hidden");
-      // No es necesario re-agregar listeners si usamos delegación correctamente
     }
   }
 
-  /**
-   * Actualiza el mensaje de "no hay campos"
-   */
   updateNoFieldsMessage() {
     const container = document.getElementById("fieldsContainer");
     if (container && container.querySelectorAll(".field-item").length === 0) {
@@ -779,9 +629,6 @@ export class TemplateManager {
     }
   }
 
-  /**
-   * Recolecta los datos del formulario y los estructura en un objeto de plantilla.
-   */
   collectFormData() {
     const name = document.getElementById("templateName")?.value || "";
     const description =
@@ -792,7 +639,6 @@ export class TemplateManager {
       document.getElementById("allowDuplicates")?.checked || false;
     const maxEntries =
       parseInt(document.getElementById("maxEntries")?.value) || 0;
-    // CAMBIO: templateCategory ahora está en el bloque de Información Básica, pero se accede igual.
     const category =
       document.getElementById("templateCategory")?.value || "custom";
 
@@ -812,23 +658,16 @@ export class TemplateManager {
       if (!label.trim())
         throw new Error(`Campo ${index + 1}: Nombre requerido`);
 
-      // USO DE HELPER: generateFieldId para generar ID consistente
       const fieldId = generateFieldId(label, index);
 
-      const isSensitive =
-        fieldItem.querySelector(".field-sensitive")?.checked || false;
-
-      // Capturar las opciones si el tipo es 'select'
       let options = [];
       if (type === "select") {
         const optionsText = fieldItem.querySelector(".field-options").value;
         if (!optionsText) {
-          // Manejar error de validación o simplemente omitir si no son requeridas
           throw new Error(
-            `El campo '${fieldTitle}' de tipo Selección Simple requiere opciones.`
+            `El campo '${label}' de tipo Selección Simple requiere opciones.`
           );
         }
-        // Limpiar, trim y filtrar opciones vacías
         options = optionsText
           .split(",")
           .map((o) => o.trim())
@@ -839,20 +678,12 @@ export class TemplateManager {
         id: fieldId,
         label: label.trim(),
         type: type,
-        // CAMBIO CLAVE: El orden se asigna automáticamente basado en la posición del DOM
         order: index + 1,
         placeholder: fieldItem.querySelector(".field-placeholder")?.value || "",
         required: fieldItem.querySelector(".field-required")?.checked || false,
-        sensitive: isSensitive,
-        encryptionLevel: isSensitive
-          ? fieldItem.querySelector(".field-encryption-level")?.value ||
-            "medium"
-          : undefined,
         ...(options.length > 0 && { options }),
       });
     });
-
-    // La lista 'fields' ya está en el orden visual del DOM.
 
     return {
       name: name.trim(),
@@ -869,9 +700,6 @@ export class TemplateManager {
     };
   }
 
-  /**
-   * Guardar plantilla (Crear o Actualizar)
-   */
   async saveTemplate() {
     try {
       const submitBtn = document.querySelector(
@@ -883,9 +711,8 @@ export class TemplateManager {
           '<i class="fas fa-spinner fa-spin mr-2"></i> Procesando...';
       }
 
-      const templateData = this.collectFormData(); // Puede lanzar Error de validación de formulario
+      const templateData = this.collectFormData();
 
-      // La validación de estructura de datos se delega a templateService.createTemplate/updateTemplate
       if (this.editingTemplate) {
         await templateService.updateTemplate(
           this.editingTemplate.id,
@@ -900,10 +727,8 @@ export class TemplateManager {
       setTimeout(() => this.loadTemplates(), 1500);
     } catch (error) {
       console.error("Error al guardar:", error);
-      // Muestra errores de validación (interna del formulario o del servicio)
       this.showError(error.message);
 
-      // Rehabilitar botón
       const submitBtn = document.querySelector(
         '#templateForm button[type="submit"]'
       );
@@ -915,8 +740,6 @@ export class TemplateManager {
       }
     }
   }
-
-  // --- Métodos de Acción y Visualización ---
 
   async editTemplate(id) {
     await this.showTemplateForm(id);
@@ -992,19 +815,16 @@ export class TemplateManager {
         </div>
       `;
 
-    // Volver a editar el formulario
     document
       .getElementById("backToForm")
       ?.addEventListener("click", () =>
         this.showTemplateForm(this.editingTemplate?.id)
       );
 
-    // Guardar (siempre volvemos al form para ejecutar la lógica de submit con el DOM activo)
     document
       .getElementById("saveFromPreview")
       ?.addEventListener("click", () => {
         this.showTemplateForm(this.editingTemplate?.id);
-        // Permitir que el DOM se cargue antes de intentar hacer submit
         setTimeout(
           () => document.getElementById("templateForm")?.requestSubmit(),
           50
@@ -1012,18 +832,11 @@ export class TemplateManager {
       });
   }
 
-  // src/components/TemplateManager.js -> renderFieldPreview(field)
-
-  /**
-   * Renderiza el HTML de un campo de formulario para la vista previa
-   */
   renderFieldPreview(field) {
-    // USO DE HELPER: getFieldTypeLabel
     const typeLabel = getFieldTypeLabel(field.type);
 
-    // NUEVA LÓGICA: Mostrar opciones para campos de selección
     const isSelect = field.type === "select";
-    let fieldDisplay; // Aquí se almacena el HTML correcto
+    let fieldDisplay;
 
     if (isSelect) {
       const optionsList = (field.options || [])
@@ -1033,10 +846,8 @@ export class TemplateManager {
         )
         .join(" ");
 
-      // Crea el DIV para mostrar las opciones del Select
       fieldDisplay = `<div class="p-3 bg-gray-100 border border-gray-200 rounded-lg">${optionsList}</div>`;
     } else {
-      // Crea el INPUT para todos los demás tipos
       fieldDisplay = `
             <input disabled class="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-700" 
                    placeholder="${
@@ -1055,46 +866,34 @@ export class TemplateManager {
                  ? '<span class="text-red-600 ml-1 font-bold" title="Campo Obligatorio">*</span>'
                  : ""
              }
-             ${
-               field.sensitive
-                 ? '<i class="fas fa-lock text-red-500 ml-1" title="Campo Sensible"></i>'
-                 : ""
-             }
            </label>
-           ${fieldDisplay} </div>
+           ${fieldDisplay} 
+        </div>
       `;
   }
 
-  /**
-   * Realiza el filtrado de plantillas por categoría y re-renderiza la lista.
-   */
   async filterTemplatesByCategory(category) {
     if (this.currentCategory === category) {
-      // Si la categoría ya está activa, no hacemos nada.
       return;
     }
 
-    // 1. Actualizar el estado del filtro
     this.currentCategory = category;
-    const categories = await templateService.getCategories(); // Se necesita para el render
+    const categories = await templateService.getCategories();
 
-    // 2. Filtrar las plantillas
     const filteredTemplates =
       category === "all"
-        ? this.allTemplates // Mostrar todas
+        ? this.allTemplates
         : this.allTemplates.filter((t) => t.settings.category === category);
 
-    // 3. Re-renderizar el contenido de la lista
     const content = document.getElementById("templateContent");
     if (content) {
       content.innerHTML = this.renderTemplateList(
         filteredTemplates,
         categories
       );
-      this.setupTemplateListListeners(); // ¡Importante! Re-configurar listeners
+      this.setupTemplateListListeners();
     }
 
-    // 4. Mostrar mensaje de confirmación
     const catName = getCategoryName(category);
     this.showMessage(
       `Mostrando ${filteredTemplates.length} plantilla${
@@ -1105,11 +904,6 @@ export class TemplateManager {
     );
   }
 
-  // --- Métodos de Utilidad UI ---
-
-  /**
-   * Muestra un mensaje temporal en la UI
-   */
   showMessage(msg, type = "info", dur = 3000) {
     const t = document.createElement("div");
     t.className = `fixed bottom-4 right-4 z-50 px-4 py-3 rounded text-white shadow-lg ${
@@ -1131,9 +925,6 @@ export class TemplateManager {
     this.showMessage(m, "error", 5000);
   }
 
-  /**
-   * Configurar validación en tiempo real para campos
-   */
   setupFieldValidation() {
     document.querySelectorAll(".field-label").forEach((input) => {
       input.addEventListener("blur", () => {
@@ -1146,9 +937,6 @@ export class TemplateManager {
     });
   }
 
-  /**
-   * Validar nombre del campo (front-end check)
-   */
   validateFieldLabel(input) {
     const value = input.value.trim();
 
@@ -1166,9 +954,6 @@ export class TemplateManager {
     return true;
   }
 
-  /**
-   * Mostrar error en campo específico
-   */
   showFieldError(input, message) {
     this.clearFieldError(input);
 
@@ -1177,21 +962,34 @@ export class TemplateManager {
     const errorDiv = document.createElement("div");
     errorDiv.className = "text-red-600 text-xs mt-1";
     errorDiv.textContent = message;
-    // Usar el ID del campo para evitar duplicados
     errorDiv.id = `error-${input.id || input.name || input.classList[0]}`;
 
     input.parentNode.appendChild(errorDiv);
   }
 
-  /**
-   * Limpiar error de campo
-   */
   clearFieldError(input) {
     input.classList.remove("border-red-500", "bg-red-50");
     const errorId = `error-${input.id || input.name || input.classList[0]}`;
     const existingError = document.getElementById(errorId);
     if (existingError) {
       existingError.remove();
+    }
+  }
+
+  initializeSortable() {
+    const container = document.getElementById("fieldsContainer");
+
+    if (container && typeof Sortable !== "undefined") {
+      new Sortable(container, {
+        animation: 150,
+        handle: ".drag-handle",
+        ghostClass: "sortable-ghost",
+        onEnd: (evt) => {
+          console.log(
+            `Campo movido de la posición ${evt.oldIndex} a ${evt.newIndex}`
+          );
+        },
+      });
     }
   }
 }

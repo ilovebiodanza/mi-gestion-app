@@ -1,6 +1,7 @@
-// src/services/templates/templates-form-generator.js
-// Importar el nuevo archivo de configuración
-import { getFieldTypeMetadata } from "../../utils/field-types-config.js"; // NUEVO IMPORT
+// src/services/templates/form-generator.js
+
+import { getFieldTypeMetadata } from "../../utils/field-types-config.js";
+
 /**
  * Servicio para generar la representación HTML/DOM (formulario)
  * a partir de la definición de una plantilla (Fase IV).
@@ -12,14 +13,21 @@ class TemplateFormGenerator {
    * @param {*} currentValue - Valor actual del campo (para edición).
    */
   renderField(field, currentValue = "") {
+    // Aseguramos que 'field.type' sea válido
+    if (!field || !field.type) {
+      return `<p class="text-red-500">Error: Tipo de campo no definido para ${
+        field.label || "un campo"
+      }.</p>`;
+    }
+
     const requiredAttr = field.required ? "required" : "";
     let inputHtml = "";
 
-    // Obtener metadatos del tipo de campo para el input HTML (NUEVO)
+    // OBTENER METADATOS DEL TIPO DE CAMPO
     const metadata = getFieldTypeMetadata(field.type);
     let inputType = metadata?.inputType || "text";
 
-    // Manejo de casos especiales que no usan un input simple (MODIFICADO)
+    // Manejo de casos especiales que no usan un input simple
     switch (inputType) {
       case "checkbox":
         // Checkbox para boolean
@@ -35,7 +43,8 @@ class TemplateFormGenerator {
           field.placeholder || ""
         }" ${requiredAttr}>${currentValue}</textarea>`;
         break;
-      case "select": // <--- NUEVO CASO: SELECCIÓN SIMPLE
+
+      case "select":
         const optionsHtml = (field.options || [])
           .map(
             (option) => `
@@ -58,8 +67,9 @@ class TemplateFormGenerator {
             ${optionsHtml}
           </select>`;
         break;
+
       default:
-        // Caso general para todos los input type="text", "number", "email", etc.
+        // Caso general para todos los input type="text", "number", "password", etc.
         inputHtml = `<input type="${inputType}" id="${field.id}" name="${
           field.id
         }" class="form-input" placeholder="${
@@ -67,18 +77,12 @@ class TemplateFormGenerator {
         }" value="${currentValue}" ${requiredAttr} />`;
         break;
     }
-    // Estructura envolvente del campo
+
+    // Estructura envolvente del campo (SIN EL ICONO DE CANDADO)
     return `
-      <div class="mb-4">
-        <label for="${
-          field.id
-        }" class="block text-sm font-medium text-gray-700">
+      <div class="mb-4 field-wrapper">
+        <label for="${field.id}" class="block text-sm font-medium text-gray-700">
             ${field.label} 
-            ${
-              field.sensitive
-                ? '<i class="fas fa-lock text-red-500 ml-1" title="Campo Sensible"></i>'
-                : ""
-            }
         </label>
         ${inputHtml}
       </div>

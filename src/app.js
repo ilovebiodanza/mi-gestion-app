@@ -9,9 +9,6 @@ import { DocumentEditor } from "./components/DocumentEditor.js";
 import { VaultList } from "./components/VaultList.js";
 import { DocumentViewer } from "./components/DocumentViewer.js";
 
-// Eliminamos importaciones de prueba que ya no se usan
-// import { EncryptionTest } from "./components/EncryptionTest.js";
-
 console.log("Mi Gestión - Aplicación inicializada");
 
 // Esperar a que el DOM esté listo
@@ -46,13 +43,18 @@ async function initializeApplication() {
  */
 async function handleAuthStateChange(user, appElement) {
   if (user) {
-    // Usuario autenticado - mostrar dashboard
-    showDashboard(user, appElement);
+    // 👇 CORRECCIÓN CRÍTICA 👇
+    // Debemos esperar a que el servicio de plantillas esté listo ANTES de mostrar el dashboard.
+    // De lo contrario, VaultList intentará pedir plantillas que aún no se han cargado.
+    try {
+      console.log("⏳ Inicializando plantillas antes de cargar dashboard...");
+      await templateService.initialize(user.uid);
+    } catch (error) {
+      console.error("Error crítico al inicializar plantillas:", error);
+    }
 
-    // Inicializar servicios que dependen del usuario
-    templateService.initialize(user.uid).catch((error) => {
-      console.error("Error al inicializar servicio de plantillas:", error);
-    });
+    // Usuario autenticado - mostrar dashboard (Ahora es seguro)
+    showDashboard(user, appElement);
 
     // Verificar si el cifrado está inicializado
     await checkAndInitializeEncryption(user);
@@ -190,10 +192,7 @@ function showDashboard(user, appElement) {
     </div>
   `;
 
-  // Configurar event listeners del dashboard
   setupDashboardListeners();
-
-  // Cargar la vista de VaultList por defecto al inicio
   showVaultListView(user);
 }
 
@@ -235,8 +234,7 @@ function showVaultListView(user) {
 }
 
 /**
- * Mostrar detalles del documento (Lectura y Edición)
- * CORREGIDO: Maneja el callback de edición
+ * Mostrar detalles del documento
  */
 async function showDocumentDetails(docId, user) {
   const appElement = document.getElementById("app");
@@ -250,14 +248,9 @@ async function showDocumentDetails(docId, user) {
   const container = document.getElementById("documentViewerPlaceholder");
 
   const viewer = new DocumentViewer(docId, (actionData) => {
-    // 👇👇 CORRECCIÓN CRÍTICA AQUÍ 👇👇
-    // Si recibimos datos (actionData), significa que el usuario hizo clic en "Editar"
     if (actionData) {
-      console.log("✏️ Modo edición activado");
       openEditorForUpdate(actionData, user);
     } else {
-      // Si es undefined/null, es solo "Volver"
-      console.log("🔙 Volviendo al listado");
       showDashboard(user, appElement);
     }
   });
@@ -314,11 +307,9 @@ function openEditorForUpdate(initialData, user) {
   const editor = new DocumentEditor(
     initialData,
     () => {
-      // Al guardar, volvemos a ver el documento actualizado
       showDocumentDetails(initialData.documentId, user);
     },
     () => {
-      // Al cancelar, volvemos al visor del documento
       showDocumentDetails(initialData.documentId, user);
     }
   );
@@ -410,7 +401,6 @@ function setupDashboardListeners() {
     });
   }
 
-  // Navegación
   document.getElementById("navMyData")?.addEventListener("click", (e) => {
     e.preventDefault();
     const user = authService.getCurrentUser();
@@ -420,7 +410,7 @@ function setupDashboardListeners() {
   document.getElementById("navHome")?.addEventListener("click", (e) => {
     e.preventDefault();
     const user = authService.getCurrentUser();
-    showVaultListView(user); // Por defecto el home muestra la bóveda
+    showVaultListView(user);
   });
 }
 
