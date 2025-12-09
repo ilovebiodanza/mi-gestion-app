@@ -1,5 +1,6 @@
 // src/services/templates/template-builder.js
 
+// Importación de la configuración centralizada
 import { getFieldTypesConfig } from "../../utils/field-types-config.js";
 
 /**
@@ -7,9 +8,10 @@ import { getFieldTypesConfig } from "../../utils/field-types-config.js";
  */
 class TemplateBuilder {
   /**
-   * Obtener tipos de campo válidos
+   * Obtener tipos de campo válidos dinámicamente desde la configuración.
    */
   getValidFieldTypes() {
+    // Extraemos solo los 'value' (ej: 'string', 'table', 'secret')
     return getFieldTypesConfig().map((type) => type.value);
   }
 
@@ -41,6 +43,8 @@ class TemplateBuilder {
    */
   validateField(field, index) {
     const validTypes = this.getValidFieldTypes();
+
+    // Validación principal de tipo
     if (!validTypes.includes(field.type)) {
       throw new Error(
         `Tipo de campo inválido: "${
@@ -49,8 +53,43 @@ class TemplateBuilder {
       );
     }
 
+    // Generar ID si falta
     if (!field.id) {
       field.id = this.generateFieldId(field.label, index);
+    }
+
+    // Validación específica para Tablas
+    if (field.type === "table") {
+      if (
+        !field.columns ||
+        !Array.isArray(field.columns) ||
+        field.columns.length === 0
+      ) {
+        // Opcional: Podrías permitir tablas vacías, pero es mejor avisar
+        // console.warn(`La tabla '${field.label}' no tiene columnas definidas.`);
+      } else {
+        // Validar las columnas recursivamente (son campos simplificados)
+        field.columns.forEach((col, i) => {
+          // 👇 CORRECCIÓN AQUÍ: Validamos 'label' en lugar de 'name'
+          if (!col.label)
+            throw new Error(
+              `La columna ${i + 1} de la tabla '${
+                field.label
+              }' no tiene nombre (etiqueta).`
+            );
+
+          if (!validTypes.includes(col.type))
+            throw new Error(`Tipo inválido en columna '${col.label}'`);
+
+          // Asegurar ID de columna usando la etiqueta
+          if (!col.id) col.id = this.generateFieldId(col.label, i);
+        });
+      }
+    }
+
+    // Asegurar propiedad sensitive
+    if (field.sensitive === undefined) {
+      field.sensitive = false;
     }
 
     return true;
@@ -60,11 +99,12 @@ class TemplateBuilder {
    * Validar estructura de datos de plantilla
    */
   validateTemplateData(templateData) {
-    if (!templateData.name || !templateData.fields) {
-      throw new Error("La plantilla debe tener nombre y campos");
+    if (!templateData.name) {
+      throw new Error("La plantilla debe tener un nombre");
     }
 
     if (
+      !templateData.fields ||
       !Array.isArray(templateData.fields) ||
       templateData.fields.length === 0
     ) {
@@ -78,6 +118,7 @@ class TemplateBuilder {
     return true;
   }
 
+  // Métodos auxiliares de UI
   getCategoryName(category) {
     const names = {
       personal: "Personal",

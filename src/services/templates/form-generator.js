@@ -78,10 +78,11 @@ class TemplateFormGenerator {
         break;
 
       case "table":
+        // 👇 ESTANDARIZACIÓN ESTRICTA: Usamos solo 'c.label'
         const headers = (field.columns || [])
           .map(
             (c) =>
-              `<th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">${c.name}</th>`
+              `<th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">${c.label}</th>`
           )
           .join("");
 
@@ -123,8 +124,6 @@ class TemplateFormGenerator {
         break;
     }
 
-    // 👇 LÓGICA DE DISEÑO: Si es Tabla o Texto Largo, ocupa 2 columnas en PC
-    // 'md:col-span-2' es una clase de Tailwind que hace que el elemento ocupe 2 espacios en la grilla
     const isFullWidth = field.type === "table" || field.type === "text";
     const layoutClass = isFullWidth ? "md:col-span-2" : "";
 
