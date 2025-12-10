@@ -6,6 +6,8 @@ export class TemplateForm {
   constructor(handlers) {
     this.handlers = handlers; // { onSave, onCancel }
     this.activeFieldItem = null;
+    this.mainSortable = null;
+    this.modalSortable = null;
   }
 
   render(template = null) {
@@ -23,7 +25,7 @@ export class TemplateForm {
     ];
     const currentCategory = template?.settings?.category || "custom";
     const initialIcon = template?.icon || "📋";
-    const initialColor = template?.color || "#4F46E5"; // Indigo 600 default
+    const initialColor = template?.color || "#4F46E5";
 
     return `
       <div class="max-w-4xl mx-auto animate-fade-in pb-16">
@@ -90,7 +92,7 @@ export class TemplateForm {
                       
                       <div class="md:col-span-8">
                           <label class="block text-sm font-bold text-slate-700 mb-2">Color Identificativo</label>
-                          <div class="flex items-center h-[50px] border border-slate-200 rounded-xl p-2 bg-white">
+                          <div class="flex items-center h-[54px] border border-slate-200 rounded-xl p-2 bg-white">
                               <input type="color" id="templateColor" value="${initialColor}" class="h-full w-full rounded cursor-pointer border-none bg-transparent">
                           </div>
                       </div>
@@ -112,7 +114,7 @@ export class TemplateForm {
                         <h4 class="text-sm font-bold text-slate-400 uppercase tracking-wider flex items-center">
                             <i class="fas fa-cubes mr-2"></i> Estructura de Datos
                         </h4>
-                        <p class="text-xs text-slate-500 mt-1">Arrastra para reordenar (Próximamente)</p>
+                        <p class="text-xs text-slate-500 mt-1">Arrastra desde el ícono <i class="fas fa-grip-vertical mx-1"></i> para reordenar.</p>
                     </div>
                     <button type="button" id="addFieldBtn" class="px-4 py-2 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 rounded-lg transition font-bold border border-indigo-200 shadow-sm flex items-center">
                         <i class="fas fa-plus-circle mr-2"></i> Agregar Campo
@@ -152,14 +154,14 @@ export class TemplateForm {
     return `
     <div class="field-item group relative bg-white border border-slate-200 rounded-xl p-2 transition-all hover:shadow-md hover:border-indigo-300" data-field-id="${fieldId}">
       <div class="flex items-start">
-        <div class="hidden md:flex flex-col items-center justify-center w-10 py-4 text-slate-300 cursor-grab hover:text-slate-500 drag-handle self-stretch border-r border-slate-100 mr-4">
+        <div class="hidden md:flex flex-col items-center justify-center w-10 py-4 text-slate-300 cursor-grab active:cursor-grabbing hover:text-slate-500 drag-handle self-stretch border-r border-slate-100 mr-4">
             <i class="fas fa-grip-vertical"></i>
         </div>
 
         <div class="flex-grow p-2">
             <div class="grid grid-cols-1 md:grid-cols-12 gap-4 mb-4">
                 <div class="md:col-span-7">
-                    <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Etiqueta del Campo</label>
+                    <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Etiqueta</label>
                     <input type="text" class="field-label w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition font-medium text-slate-800" 
                            value="${
                              field?.label || ""
@@ -167,7 +169,7 @@ export class TemplateForm {
                 </div>
                 
                 <div class="md:col-span-5 relative">
-                    <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Tipo de Dato</label>
+                    <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Tipo</label>
                     <select class="field-type w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition appearance-none cursor-pointer">
                         ${fieldTypes
                           .map(
@@ -186,12 +188,11 @@ export class TemplateForm {
                 <div class="options-input-group ${
                   field?.type === "select" ? "" : "hidden"
                 }">
-                    <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Opciones de Lista</label>
+                    <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Opciones</label>
                     <input type="text" class="field-options w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm" 
                            value="${(field?.options || []).join(
                              ", "
-                           )}" placeholder="Opción 1, Opción 2, Opción 3...">
-                    <p class="text-[10px] text-slate-400 mt-1">Separa las opciones con comas.</p>
+                           )}" placeholder="Opción 1, Opción 2...">
                 </div>
 
                 <div class="table-config-group ${
@@ -200,14 +201,14 @@ export class TemplateForm {
                     <input type="hidden" class="field-columns-data" value='${columnsData}'>
                     <div class="flex items-center justify-between p-3 bg-indigo-50/50 rounded-lg border border-indigo-100">
                         <div class="flex items-center">
-                            <div class="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 mr-3 shadow-sm"><i class="fas fa-table text-sm"></i></div>
+                            <div class="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 mr-3"><i class="fas fa-table text-sm"></i></div>
                             <div>
-                                <p class="text-sm font-bold text-indigo-900">Configuración de Tabla</p>
-                                <p class="text-xs text-indigo-600"><span class="columns-count-badge font-bold">${columnsCount}</span> columnas definidas</p>
+                                <p class="text-sm font-bold text-indigo-900">Tabla Configurada</p>
+                                <p class="text-xs text-indigo-600"><span class="columns-count-badge font-bold">${columnsCount}</span> columnas</p>
                             </div>
                         </div>
                         <button type="button" class="configure-table-btn px-3 py-1.5 bg-white text-indigo-600 text-xs font-bold border border-indigo-200 rounded-lg hover:bg-indigo-50 shadow-sm transition">
-                            Configurar Columnas
+                            Configurar
                         </button>
                     </div>
                 </div>
@@ -217,13 +218,13 @@ export class TemplateForm {
                         <input type="checkbox" class="field-required form-checkbox h-4 w-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500" ${
                           field?.required ? "checked" : ""
                         }>
-                        <span class="ml-2 text-xs font-bold text-slate-500">Campo Obligatorio</span>
+                        <span class="ml-2 text-xs font-bold text-slate-500">Obligatorio</span>
                     </label>
                 </div>
             </div>
         </div>
 
-        <button type="button" class="remove-field absolute -top-2 -right-2 w-7 h-7 bg-white text-slate-300 hover:text-red-500 border border-slate-200 hover:border-red-200 rounded-full shadow-sm flex items-center justify-center transition-all z-10" title="Eliminar campo">
+        <button type="button" class="remove-field absolute -top-2 -right-2 w-7 h-7 bg-white text-slate-300 hover:text-red-500 border border-slate-200 hover:border-red-200 rounded-full shadow-sm flex items-center justify-center transition-all z-10">
             <i class="fas fa-times text-xs"></i>
         </button>
       </div>
@@ -240,7 +241,7 @@ export class TemplateForm {
                 <div class="px-6 py-5 border-b border-slate-100 flex justify-between items-center bg-white rounded-t-2xl">
                     <div>
                         <h3 class="text-lg font-bold text-slate-800">Configurar Columnas</h3>
-                        <p class="text-xs text-slate-500">Define qué datos tendrá esta tabla.</p>
+                        <p class="text-xs text-slate-500">Arrastra para reordenar las columnas.</p>
                     </div>
                     <button type="button" id="closeModalTop" class="text-slate-400 hover:text-slate-600 bg-slate-100 hover:bg-slate-200 w-8 h-8 rounded-full transition flex items-center justify-center"><i class="fas fa-times"></i></button>
                 </div>
@@ -285,22 +286,22 @@ export class TemplateForm {
       .querySelector("#addFieldBtn")
       ?.addEventListener("click", () => this.addField(container));
 
-    // 3. Event Delegation
+    // 3. Inicializar Drag & Drop Principal (NUEVO)
+    this.initSortable(container.querySelector("#fieldsContainer"), "main");
+
+    // 4. Delegación de Eventos
     const fieldsContainer = container.querySelector("#fieldsContainer");
     if (fieldsContainer) {
       fieldsContainer.addEventListener("click", (e) => {
-        // Eliminar
-        const btnRemove = e.target.closest(".remove-field");
-        if (btnRemove) {
-          btnRemove.closest(".field-item").remove();
+        if (e.target.closest(".remove-field")) {
+          e.target.closest(".field-item").remove();
           this.updateNoFieldsMessage(container);
         }
-        // Configurar tabla
         if (e.target.closest(".configure-table-btn")) {
           this.openColumnsModal(e.target.closest(".field-item"));
         }
       });
-      // Toggle inputs
+
       fieldsContainer.addEventListener("change", (e) => {
         if (e.target.classList.contains("field-type")) {
           const item = e.target.closest(".field-item");
@@ -315,7 +316,7 @@ export class TemplateForm {
       });
     }
 
-    // 4. Form Submit
+    // 5. Submit
     container
       .querySelector("#templateForm")
       ?.addEventListener("submit", (e) => {
@@ -327,6 +328,31 @@ export class TemplateForm {
       ?.addEventListener("click", () => this.handlers.onCancel());
 
     this.setupModalListeners();
+  }
+
+  // --- FUNCIÓN PARA INICIALIZAR SORTABLE (NUEVO) ---
+  initSortable(element, type) {
+    if (!element || !window.Sortable) return;
+
+    // Destruir instancia previa si existe para evitar duplicados
+    if (type === "main" && this.mainSortable) this.mainSortable.destroy();
+    if (type === "modal" && this.modalSortable) this.modalSortable.destroy();
+
+    const config = {
+      animation: 150,
+      handle: ".drag-handle", // Solo se arrastra desde el icono
+      ghostClass: "bg-indigo-50", // Clase para el elemento fantasma
+      chosenClass: "bg-indigo-50",
+      forceFallback: true, // Mejor compatibilidad
+      onEnd: () => {
+        // El orden del DOM ya cambió, collectFields leerá el nuevo orden
+      },
+    };
+
+    const sortable = new window.Sortable(element, config);
+
+    if (type === "main") this.mainSortable = sortable;
+    else this.modalSortable = sortable;
   }
 
   addField(container) {
@@ -342,7 +368,6 @@ export class TemplateForm {
     if (fc && msg) msg.classList.toggle("hidden", fc.children.length > 0);
   }
 
-  // --- MODAL LOGIC ---
   setupModalListeners() {
     const modal = document.getElementById("columnsModal");
     if (!modal) return;
@@ -351,28 +376,26 @@ export class TemplateForm {
       modal.classList.remove("flex");
     };
 
-    // Cerrar
     modal.querySelector("#closeModalTop").onclick = close;
     modal.querySelector("#cancelModalBtn").onclick = close;
     modal.querySelector("#closeModalBackdrop").onclick = close;
 
-    // Agregar Columna
     const addFn = () => {
       const c = modal.querySelector("#modalColumnsContainer");
       const count = c.querySelectorAll(".field-item").length;
       c.insertAdjacentHTML("beforeend", this.renderFieldItem(null, count));
-      // Limpiar opciones no válidas para columnas
+
       const select = c.lastElementChild.querySelector(".field-type");
       [...select.options].forEach((opt) => {
         if (opt.value === "table") opt.remove();
       });
+
       modal.querySelector("#noColumnsMessage").classList.add("hidden");
     };
     modal.querySelector("#addColBtn").onclick = addFn;
     const emptyBtn = modal.querySelector("#addColBtnEmpty");
     if (emptyBtn) emptyBtn.onclick = addFn;
 
-    // Delegación Modal
     const mc = modal.querySelector("#modalColumnsContainer");
     mc.onclick = (e) => {
       const rm = e.target.closest(".remove-field");
@@ -391,7 +414,6 @@ export class TemplateForm {
       }
     };
 
-    // Guardar
     modal.querySelector("#saveModalBtn").onclick = () => {
       const columns = this.collectFields(mc);
       const parent = this.activeFieldItem;
@@ -424,6 +446,9 @@ export class TemplateForm {
       if (col.type === "select")
         el.querySelector(".options-input-group").classList.remove("hidden");
     });
+
+    // Inicializar Drag & Drop en el Modal también
+    this.initSortable(container, "modal");
 
     modal
       .querySelector("#noColumnsMessage")
