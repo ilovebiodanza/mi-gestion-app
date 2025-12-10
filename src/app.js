@@ -1,4 +1,4 @@
-// src/app.js - Archivo principal de la aplicación
+// src/app.js
 import { authService } from "./services/auth.js";
 import { AuthForms } from "./components/AuthForms.js";
 import { PasswordPrompt } from "./components/PasswordPrompt.js";
@@ -8,27 +8,24 @@ import { templateService } from "./services/templates/index.js";
 import { DocumentEditor } from "./components/DocumentEditor.js";
 import { VaultList } from "./components/VaultList.js";
 import { DocumentViewer } from "./components/DocumentViewer.js";
-import { SettingsManager } from "./components/SettingsManager.js"; // <--- CAMBIO AQUÍ
+import { SettingsManager } from "./components/SettingsManager.js";
 
-console.log("Mi Gestión - Aplicación inicializada");
+console.log("🚀 Mi Gestión - Inicializando sistema...");
 
 document.addEventListener("DOMContentLoaded", () => {
-  console.log("DOM cargado");
   initializeApplication();
 });
 
 async function initializeApplication() {
   const appElement = document.getElementById("app");
+  if (!appElement) return;
 
-  if (!appElement) {
-    console.error("Elemento #app no encontrado");
-    return;
-  }
-
+  // Listener de Auth
   authService.subscribe(async (user) => {
     await handleAuthStateChange(user, appElement);
   });
 
+  // Estado inicial
   const user = authService.getCurrentUser();
   await handleAuthStateChange(user, appElement);
 }
@@ -36,12 +33,11 @@ async function initializeApplication() {
 async function handleAuthStateChange(user, appElement) {
   if (user) {
     try {
-      console.log("⏳ Inicializando plantillas antes de cargar dashboard...");
+      // Cargar dependencias de usuario
       await templateService.initialize(user.uid);
     } catch (error) {
-      console.error("Error crítico al inicializar plantillas:", error);
+      console.error("Error inicializando servicios:", error);
     }
-
     showDashboard(user, appElement);
     await checkAndInitializeEncryption(user);
   } else {
@@ -50,125 +46,130 @@ async function handleAuthStateChange(user, appElement) {
 }
 
 async function checkAndInitializeEncryption(user) {
+  // Pequeño delay para asegurar que la UI renderizó
   setTimeout(async () => {
-    const isEncryptionInitialized = encryptionService.isReady();
-
-    if (!isEncryptionInitialized) {
-      console.log("🔐 Cifrado no inicializado, mostrando prompt...");
-
+    if (!encryptionService.isReady()) {
       const passwordPrompt = new PasswordPrompt(async (password) => {
         try {
           await authService.initializeEncryption(password);
           return true;
         } catch (error) {
-          console.error("Error al inicializar cifrado:", error);
           return false;
         }
       }, user.email);
-
-      setTimeout(() => {
-        passwordPrompt.show();
-      }, 500);
-    } else {
-      console.log("✅ Cifrado ya está inicializado");
+      passwordPrompt.show();
     }
-  }, 1000);
+  }, 500);
 }
 
 function showAuthForms(appElement) {
   const authForms = new AuthForms((userData) => {
-    console.log("✅ Auth success callback:", userData);
+    console.log("Autenticación exitosa");
   });
 
+  // DISEÑO AUTH ACTUALIZADO
   appElement.innerHTML = `
-    <div class="min-h-screen bg-gradient-to-br from-blue-50 to-gray-100 flex items-center justify-center p-4">
-      <div class="w-full max-w-lg">
-        <div class="text-center mb-8">
-          <div class="inline-flex items-center justify-center w-20 h-20 bg-blue-100 rounded-full mb-4">
-            <i class="fas fa-shield-alt text-3xl text-blue-600"></i>
+    <div class="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-slate-50 to-slate-200">
+      <div class="w-full max-w-md bg-white rounded-2xl shadow-xl border border-slate-100 overflow-hidden transform transition-all">
+        <div class="bg-gradient-to-r from-primary to-secondary p-8 text-center">
+          <div class="inline-flex items-center justify-center w-16 h-16 bg-white/20 backdrop-blur-sm rounded-full mb-4 shadow-inner border border-white/30">
+            <i class="fas fa-shield-alt text-3xl text-white"></i>
           </div>
-          <h1 class="text-3xl font-bold text-gray-800 mb-2">Mi Gestión</h1>
-          <p class="text-gray-600">Protege tu información personal con cifrado de extremo a extremo</p>
+          <h1 class="text-3xl font-bold text-white tracking-tight">Mi Gestión</h1>
+          <p class="text-blue-100 text-sm mt-2 font-medium">Bóveda Digital Segura</p>
         </div>
         
-        <div id="authContainer"></div>
+        <div id="authContainer" class="p-8"></div>
         
-        <div class="mt-8 text-center text-sm text-gray-500">
-          <p><i class="fas fa-lock mr-1"></i> Tus datos nunca salen de tu dispositivo cifrados</p>
+        <div class="px-8 pb-6 text-center">
+          <p class="text-xs text-slate-400 flex items-center justify-center gap-2">
+            <i class="fas fa-lock text-green-500"></i>
+            Encriptado de Extremo a Extremo (E2EE)
+          </p>
         </div>
       </div>
     </div>
   `;
 
   const authContainer = document.getElementById("authContainer");
-  if (authContainer) {
-    authForms.updateView(authContainer);
-  }
+  if (authContainer) authForms.updateView(authContainer);
 }
 
-/**
- * Mostrar dashboard para usuario autenticado
- */
 async function showDashboard(user, appElement) {
-  // Hacemos la función async
-
-  // 1. Obtener el rol del usuario
   const userRole = await authService.getUserRole();
-  console.log("👤 Rol detectado:", userRole);
 
-  // 2. HTML condicional para el botón Admin
-  const adminButtonHtml =
+  // Badge de Admin mejorado
+  const adminBadge =
     userRole === "admin"
-      ? `<a href="#" class="text-red-600 hover:text-red-800 px-3 py-2 rounded-md text-sm font-bold border border-red-200 bg-red-50 ml-2" id="navAdmin">
-         <i class="fas fa-user-shield mr-1"></i> Panel Admin
+      ? `<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 border border-red-200">
+         <i class="fas fa-shield-virus"></i> Admin
+       </span>`
+      : `<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary border border-blue-200">
+         <i class="fas fa-user"></i> Usuario
+       </span>`;
+
+  // Botón Admin
+  const adminNav =
+    userRole === "admin"
+      ? `<a href="#" id="navAdmin" class="text-slate-600 hover:text-red-600 hover:bg-red-50 px-3 py-2 rounded-lg text-sm font-medium transition-colors">
+         Admin Panel
        </a>`
       : "";
 
   appElement.innerHTML = `
-    <div class="min-h-screen bg-gray-50">
-      <nav class="bg-white shadow-sm">
+    <div class="min-h-screen bg-slate-50 flex flex-col">
+      <nav class="sticky top-0 z-40 w-full bg-white/80 backdrop-blur-md border-b border-slate-200 shadow-sm">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div class="flex justify-between h-16">
-            <div class="flex items-center">
-              <div class="flex items-center">
-                <i class="fas fa-shield-alt text-xl text-blue-600 mr-3"></i>
-                <h1 class="text-xl font-bold text-gray-800">Mi Gestión</h1>
-              </div>
-              <div class="hidden md:block ml-10">
-                <div class="flex space-x-4 items-center">
-                  <a href="#" class="text-gray-700 hover:text-blue-600 px-3 py-2 rounded-md text-sm font-medium" id="navHome">
-                    <i class="fas fa-home mr-1"></i> Inicio
-                  </a>
-                  <a href="#mis-datos" class="text-gray-700 hover:text-blue-600 px-3 py-2 rounded-md text-sm font-medium" id="navMyData">
-                    <i class="fas fa-database mr-1"></i> Mis Datos
-                  </a>
-                  <a href="#" class="text-gray-700 hover:text-blue-600 px-3 py-2 rounded-md text-sm font-medium" id="navSettings">
-                    <i class="fas fa-cogs mr-1"></i> Configuración
-                  </a>
-                  ${adminButtonHtml}
+            
+            <div class="flex items-center gap-8">
+              <div class="flex items-center gap-2">
+                <div class="bg-gradient-to-br from-primary to-secondary text-white w-8 h-8 rounded-lg flex items-center justify-center shadow-lg shadow-blue-500/30">
+                  <i class="fas fa-shield-alt text-sm"></i>
                 </div>
+                <span class="font-bold text-slate-800 text-lg tracking-tight">Mi Gestión</span>
+              </div>
+              
+              <div class="hidden md:flex items-center space-x-1">
+                <a href="#" id="navHome" class="text-slate-600 hover:text-primary hover:bg-primary-light px-3 py-2 rounded-lg text-sm font-medium transition-colors">
+                  <i class="fas fa-home mr-1.5 opacity-70"></i>Inicio
+                </a>
+                <a href="#mis-datos" id="navMyData" class="text-slate-600 hover:text-primary hover:bg-primary-light px-3 py-2 rounded-lg text-sm font-medium transition-colors">
+                  <i class="fas fa-database mr-1.5 opacity-70"></i>Bóveda
+                </a>
+                <a href="#" id="navSettings" class="text-slate-600 hover:text-primary hover:bg-primary-light px-3 py-2 rounded-lg text-sm font-medium transition-colors">
+                  <i class="fas fa-cogs mr-1.5 opacity-70"></i>Ajustes
+                </a>
+                ${adminNav}
               </div>
             </div>
             
-            <div class="flex items-center">
-              <div class="flex items-center space-x-3">
-                <div class="text-right hidden md:block">
-                  <p class="text-sm font-medium text-gray-700">${user.email}</p>
-                  <p class="text-xs text-gray-500">${
-                    userRole === "admin" ? "Administrador" : "Usuario"
-                  }</p>
-                </div>
-                <div class="relative">
-                  <button id="userMenuButton" class="flex items-center space-x-2 bg-gray-100 hover:bg-gray-200 rounded-full p-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                    <div class="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white font-medium">
-                      ${user.email.charAt(0).toUpperCase()}
-                    </div>
-                    <i class="fas fa-chevron-down text-gray-600"></i>
-                  </button>
-                  
-                  <div id="userMenu" class="hidden absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-10">
-                    <button id="logoutButton" class="block w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-gray-100">
-                      <i class="fas fa-sign-out-alt mr-2"></i> Cerrar Sesión
+            <div class="flex items-center gap-4">
+              <div class="hidden md:flex flex-col items-end">
+                <span class="text-sm font-semibold text-slate-700 leading-none">${
+                  user.email.split("@")[0]
+                }</span>
+                <span class="mt-1">${adminBadge}</span>
+              </div>
+              
+              <div class="relative group">
+                <button id="userMenuButton" class="flex items-center justify-center w-10 h-10 rounded-full bg-gradient-to-br from-slate-100 to-slate-200 border border-slate-300 text-slate-600 hover:ring-2 hover:ring-offset-2 hover:ring-primary transition-all">
+                   <span class="font-bold text-lg">${user.email
+                     .charAt(0)
+                     .toUpperCase()}</span>
+                </button>
+                
+                <div id="userMenu" class="hidden absolute right-0 mt-2 w-56 origin-top-right bg-white rounded-xl shadow-2xl ring-1 ring-black ring-opacity-5 focus:outline-none z-50 transform transition-all">
+                  <div class="p-4 border-b border-slate-100 md:hidden">
+                    <p class="text-sm font-medium text-slate-900 truncate">${
+                      user.email
+                    }</p>
+                    <div class="mt-2">${adminBadge}</div>
+                  </div>
+                  <div class="py-1">
+                    <button id="logoutButton" class="group flex w-full items-center px-4 py-2.5 text-sm text-slate-700 hover:bg-red-50 hover:text-red-700 transition-colors">
+                      <i class="fas fa-sign-out-alt mr-3 text-slate-400 group-hover:text-red-500"></i>
+                      Cerrar Sesión
                     </button>
                   </div>
                 </div>
@@ -178,52 +179,51 @@ async function showDashboard(user, appElement) {
         </div>
       </nav>
 
-      <main class="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
-        <div id="dynamicContent"></div>
+      <main class="flex-grow max-w-7xl w-full mx-auto py-8 px-4 sm:px-6 lg:px-8">
+        <div id="dynamicContent" class="animate-fade-in"></div>
       </main>
     </div>
   `;
 
   setupDashboardListeners();
 
-  // Agregar listener para el botón Admin si existe
   if (userRole === "admin") {
     document.getElementById("navAdmin")?.addEventListener("click", (e) => {
       e.preventDefault();
-      alert(
-        "🚧 Panel de Administración en construcción.\nAquí podrás gestionar plantillas globales y usuarios."
-      );
+      alert("🚧 Panel Admin: Próximamente gestión de usuarios global.");
     });
   }
 
   showVaultListView(user);
 }
 
+// Vista de Bóveda (Lista de Documentos)
 function showVaultListView(user) {
   const mainContainer = document.querySelector("main");
   if (!mainContainer) return;
 
   mainContainer.innerHTML = `
-    <div class="mb-6 flex justify-between items-center">
+    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
       <div>
-        <h2 class="text-2xl font-bold text-gray-800">Mis Datos</h2>
-        <p class="text-gray-600">Información protegida y cifrada</p>
+        <h2 class="text-2xl font-bold text-slate-800 tracking-tight">Mi Bóveda</h2>
+        <p class="text-slate-500 mt-1">Gestiona tus documentos cifrados de forma segura.</p>
       </div>
-      <button id="btnNewDocVault" class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition flex items-center shadow-sm">
-        <i class="fas fa-plus mr-2"></i> Nuevo
+      <button id="btnNewDocVault" class="group inline-flex items-center justify-center gap-2 bg-primary hover:bg-primary-hover text-white font-medium py-2.5 px-5 rounded-xl shadow-lg shadow-blue-500/20 transition-all hover:-translate-y-0.5">
+        <i class="fas fa-plus text-sm transition-transform group-hover:rotate-90"></i>
+        <span>Nuevo Documento</span>
       </button>
     </div>
-    <div id="vaultListContainer"></div>
+
+    <div id="vaultListContainer" class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden min-h-[300px]">
+      </div>
   `;
 
   const vaultList = new VaultList(
     (docId) => {
-      console.log("Abrir documento cifrado:", docId);
+      console.log("🔓 Abriendo documento:", docId);
       showDocumentDetails(docId, user);
     },
-    () => {
-      showTemplateManager(user);
-    }
+    () => showTemplateManager(user)
   );
 
   document.getElementById("btnNewDocVault")?.addEventListener("click", () => {
@@ -233,109 +233,26 @@ function showVaultListView(user) {
   vaultList.loadDocuments();
 }
 
-async function showDocumentDetails(docId, user) {
-  const appElement = document.getElementById("app");
-
-  appElement.innerHTML = `
-    <div class="min-h-screen bg-gray-50 py-8 px-4 sm:px-6 lg:px-8">
-      <div id="documentViewerPlaceholder"></div>
-    </div>
-  `;
-
-  const container = document.getElementById("documentViewerPlaceholder");
-
-  const viewer = new DocumentViewer(docId, (actionData) => {
-    if (actionData) {
-      openEditorForUpdate(actionData, user);
-    } else {
-      showDashboard(user, appElement);
-    }
-  });
-
-  container.innerHTML = viewer.render();
-  await viewer.load();
-}
-
-async function showDocumentEditor(templateId, user) {
-  const appElement = document.getElementById("app");
-
-  appElement.innerHTML = `
-    <div class="min-h-screen bg-gray-50 flex items-center justify-center">
-      <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
-    </div>`;
-
-  try {
-    const template = await templateService.getTemplateById(templateId);
-
-    const editor = new DocumentEditor(
-      { template: template },
-      () => {
-        showDashboard(user, appElement);
-      },
-      () => {
-        showTemplateManager(user);
-      }
-    );
-
-    appElement.innerHTML = `
-      <div class="min-h-screen bg-gray-50 py-8 px-4 sm:px-6 lg:px-8">
-        <div id="editorContainer"></div>
-      </div>
-    `;
-
-    document.getElementById("editorContainer").innerHTML = editor.render();
-    editor.setupEventListeners();
-  } catch (error) {
-    console.error("Error cargando editor:", error);
-    alert("Error al cargar la plantilla: " + error.message);
-    showTemplateManager(user);
-  }
-}
-
-function openEditorForUpdate(initialData, user) {
-  const appElement = document.getElementById("app");
-
-  const editor = new DocumentEditor(
-    initialData,
-    () => {
-      showDocumentDetails(initialData.documentId, user);
-    },
-    () => {
-      showDocumentDetails(initialData.documentId, user);
-    }
-  );
-
-  appElement.innerHTML = `
-    <div class="min-h-screen bg-gray-50 py-8 px-4 sm:px-6 lg:px-8">
-      <div id="editorContainer"></div>
-    </div>
-  `;
-
-  document.getElementById("editorContainer").innerHTML = editor.render();
-  editor.setupEventListeners();
-}
-
+// Vista de Gestión de Plantillas
 function showTemplateManager(user) {
   const appElement = document.getElementById("app");
-  if (!appElement) return;
 
   const templateManager = new TemplateManager((templateId) => {
-    console.log("Plantilla seleccionada:", templateId);
     showDocumentEditor(templateId, user);
   });
 
   appElement.innerHTML = `
-    <div class="min-h-screen bg-gray-50">
-      <nav class="bg-white shadow-sm">
+    <div class="min-h-screen bg-slate-50">
+      <nav class="bg-white border-b border-slate-200 sticky top-0 z-30">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div class="flex justify-between h-16">
-            <div class="flex items-center">
-              <button id="backToDashboard" class="mr-4 text-gray-600 hover:text-blue-600">
+          <div class="flex justify-between h-16 items-center">
+            <div class="flex items-center gap-4">
+              <button id="backToDashboard" class="p-2 -ml-2 text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-full transition-colors">
                 <i class="fas fa-arrow-left text-lg"></i>
               </button>
-              <div class="flex items-center">
-                <i class="fas fa-layer-group text-xl text-indigo-600 mr-3"></i>
-                <h1 class="text-xl font-bold text-gray-800">Gestión de Plantillas</h1>
+              <div>
+                <h1 class="text-xl font-bold text-slate-800">Nueva Entrada</h1>
+                <p class="text-xs text-slate-500">Selecciona una plantilla para comenzar</p>
               </div>
             </div>
           </div>
@@ -355,19 +272,94 @@ function showTemplateManager(user) {
   }
 
   document.getElementById("backToDashboard")?.addEventListener("click", () => {
-    const user = authService.getCurrentUser();
-    if (user) {
-      showDashboard(user, appElement);
-    }
+    showDashboard(user, appElement);
   });
 }
 
-// NUEVA FUNCIÓN PARA MOSTRAR CONFIGURACIÓN
+// Helpers para navegación y configuración
+async function showDocumentDetails(docId, user) {
+  const appElement = document.getElementById("app");
+
+  // Skeleton loader mientras carga
+  appElement.innerHTML = `
+    <div class="min-h-screen bg-slate-50 py-8 px-4 flex justify-center items-start">
+      <div class="animate-pulse bg-white w-full max-w-4xl h-96 rounded-2xl shadow-sm"></div>
+    </div>
+  `;
+
+  const viewer = new DocumentViewer(docId, (actionData) => {
+    if (actionData) openEditorForUpdate(actionData, user);
+    else showDashboard(user, appElement);
+  });
+
+  // Render container
+  appElement.innerHTML = `
+    <div class="min-h-screen bg-slate-50 py-8 px-4 sm:px-6 lg:px-8">
+      <div id="documentViewerPlaceholder" class="max-w-5xl mx-auto"></div>
+    </div>
+  `;
+
+  document.getElementById("documentViewerPlaceholder").innerHTML =
+    viewer.render();
+  await viewer.load();
+}
+
+function openEditorForUpdate(initialData, user) {
+  const appElement = document.getElementById("app");
+  const editor = new DocumentEditor(
+    initialData,
+    () => showDocumentDetails(initialData.documentId, user),
+    () => showDocumentDetails(initialData.documentId, user)
+  );
+
+  appElement.innerHTML = `
+    <div class="min-h-screen bg-slate-50 py-8 px-4 sm:px-6 lg:px-8">
+      <div id="editorContainer" class="max-w-5xl mx-auto"></div>
+    </div>
+  `;
+
+  document.getElementById("editorContainer").innerHTML = editor.render();
+  editor.setupEventListeners();
+}
+
+async function showDocumentEditor(templateId, user) {
+  const appElement = document.getElementById("app");
+
+  // Loader
+  appElement.innerHTML = `
+    <div class="h-screen flex items-center justify-center bg-slate-50">
+      <div class="flex flex-col items-center">
+        <div class="animate-spin rounded-full h-10 w-10 border-b-2 border-primary mb-4"></div>
+        <p class="text-slate-500">Cargando plantilla...</p>
+      </div>
+    </div>`;
+
+  try {
+    const template = await templateService.getTemplateById(templateId);
+    const editor = new DocumentEditor(
+      { template: template },
+      () => showDashboard(user, appElement),
+      () => showTemplateManager(user)
+    );
+
+    appElement.innerHTML = `
+      <div class="min-h-screen bg-slate-50 py-8 px-4 sm:px-6 lg:px-8">
+        <div id="editorContainer" class="max-w-5xl mx-auto"></div>
+      </div>
+    `;
+
+    document.getElementById("editorContainer").innerHTML = editor.render();
+    editor.setupEventListeners();
+  } catch (error) {
+    console.error(error);
+    alert("Error cargando plantilla.");
+    showTemplateManager(user);
+  }
+}
+
 function showSettings(user) {
   const mainContainer = document.querySelector("main");
-  if (!mainContainer) return;
-
-  const settingsManager = new SettingsManager(); // CAMBIO: Usamos SettingsManager
+  const settingsManager = new SettingsManager();
   mainContainer.innerHTML = settingsManager.render();
   settingsManager.setupEventListeners();
 }
@@ -378,37 +370,33 @@ function setupDashboardListeners() {
   const logoutButton = document.getElementById("logoutButton");
 
   if (userMenuButton && userMenu) {
+    // Lógica mejorada para el dropdown
     userMenuButton.addEventListener("click", (e) => {
       e.stopPropagation();
       userMenu.classList.toggle("hidden");
+      // Animación simple de entrada
+      if (!userMenu.classList.contains("hidden")) {
+        userMenu.classList.add("animate-fade-in-down");
+      }
     });
+
     document.addEventListener("click", () => userMenu.classList.add("hidden"));
     userMenu.addEventListener("click", (e) => e.stopPropagation());
   }
 
   if (logoutButton) {
-    logoutButton.addEventListener("click", async () => {
-      try {
-        await authService.logout();
-      } catch (error) {
-        console.error("Error al cerrar sesión:", error);
-      }
-    });
+    logoutButton.addEventListener("click", () => authService.logout());
   }
 
-  document.getElementById("navMyData")?.addEventListener("click", (e) => {
-    e.preventDefault();
-    const user = authService.getCurrentUser();
-    showVaultListView(user);
+  // Navegación
+  ["navMyData", "navHome"].forEach((id) => {
+    document.getElementById(id)?.addEventListener("click", (e) => {
+      e.preventDefault();
+      const user = authService.getCurrentUser();
+      showVaultListView(user);
+    });
   });
 
-  document.getElementById("navHome")?.addEventListener("click", (e) => {
-    e.preventDefault();
-    const user = authService.getCurrentUser();
-    showVaultListView(user);
-  });
-
-  // LISTENER PARA CONFIGURACIÓN
   document.getElementById("navSettings")?.addEventListener("click", (e) => {
     e.preventDefault();
     const user = authService.getCurrentUser();
@@ -416,6 +404,7 @@ function setupDashboardListeners() {
   });
 }
 
+// Helpers de inicio
 async function initializePostLogin(user, password) {
   await encryptionService.initialize(password, user.uid);
 }
@@ -424,6 +413,4 @@ export function initApp() {
   initializeApplication();
 }
 
-window.app = {
-  initializePostLogin,
-};
+window.app = { initializePostLogin };

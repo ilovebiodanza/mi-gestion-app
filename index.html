@@ -1,26 +1,68 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="es" class="h-full bg-slate-50">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Mi Gestión - Gestión Segura de Datos Personales</title>
+    <title>Mi Gestión - Gestión Segura de Datos</title>
     <meta
       name="description"
-      content="Aplicación web para almacenamiento seguro de información personal con cifrado de extremo a extremo"
+      content="Almacenamiento seguro de información personal con cifrado E2EE"
     />
 
-    <!-- Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="icon" href="assets/favicon.ico" />
 
-    <!-- Font Awesome Icons -->
     <link
       rel="stylesheet"
       href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
     />
 
-    <!-- Firebase SDK v9 (modular) desde CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        darkMode: "class", // Preparado para futuro modo oscuro
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ["Inter", "sans-serif"],
+            },
+            colors: {
+              // Mapeamos tus variables originales a Tailwind
+              primary: {
+                DEFAULT: "#2563eb", // Blue 600
+                hover: "#1d4ed8", // Blue 700
+                light: "#eff6ff", // Blue 50
+              },
+              secondary: {
+                DEFAULT: "#7c3aed", // Violet 600
+                hover: "#6d28d9", // Violet 700
+              },
+              success: "#10b981",
+              danger: "#ef4444",
+            },
+          },
+        },
+      };
+    </script>
+
+    <link rel="stylesheet" href="./src/styles/main.css" />
+
+    <style type="text/tailwindcss">
+      @layer utilities {
+        .text-shadow {
+          text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+      }
+      /* Ocultar scrollbar pero permitir scroll */
+      .no-scrollbar::-webkit-scrollbar {
+        display: none;
+      }
+      .no-scrollbar {
+        -ms-overflow-style: none;
+        scrollbar-width: none;
+      }
+    </style>
+
     <script type="module">
-      // Import the functions you need from the SDKs you need
       import { initializeApp } from "https://www.gstatic.com/firebasejs/10.3.0/firebase-app.js";
       import {
         getAuth,
@@ -30,24 +72,22 @@
         sendPasswordResetEmail,
         updatePassword,
         onAuthStateChanged,
-        reauthenticateWithCredential, // <--- NUEVO
-        EmailAuthProvider, // <--- NUEVO
+        reauthenticateWithCredential,
+        EmailAuthProvider,
       } from "https://www.gstatic.com/firebasejs/10.3.0/firebase-auth.js";
 
-      // 👇👇👇 AQUÍ ESTÁ EL CAMBIO IMPORTANTE 👇👇👇
       import {
         getFirestore,
         doc,
         setDoc,
         getDoc,
-        collection, // Nuevo
-        getDocs, // Nuevo
-        query, // Nuevo
-        orderBy, // Nuevo
+        collection,
+        getDocs,
+        query,
+        orderBy,
         deleteDoc,
       } from "https://www.gstatic.com/firebasejs/10.3.0/firebase-firestore.js";
 
-      // Your web app's Firebase configuration
       const firebaseConfig = {
         apiKey: "AIzaSyBJgDqHiHD8mncuRNlw8eA1ismr_fcvj2E",
         authDomain: "mi-gestion-e2ee.firebaseapp.com",
@@ -58,65 +98,53 @@
         measurementId: "G-GLYJSXBC8E",
       };
 
-      // Initialize Firebase
       const app = initializeApp(firebaseConfig);
       const auth = getAuth(app);
       const db = getFirestore(app);
 
-      // Exportar funciones y objetos para usar en otros módulos
       window.firebaseModules = {
-        // App
         app,
         auth,
         db,
-
-        // Auth functions
         createUserWithEmailAndPassword,
         signInWithEmailAndPassword,
         signOut,
         sendPasswordResetEmail,
         updatePassword,
         onAuthStateChanged,
-        reauthenticateWithCredential, // <--- EXPORTAR NUEVO
-        EmailAuthProvider, // <--- EXPORTAR NUEVO
-
-        // Firestore functions
+        reauthenticateWithCredential,
+        EmailAuthProvider,
         getFirestore,
         doc,
         setDoc,
         getDoc,
-
-        // 👇👇👇 AGREGAR ESTAS EXPORTACIONES 👇👇👇
         collection,
         getDocs,
         query,
         orderBy,
         deleteDoc,
       };
-
-      console.log("✅ Firebase inicializado desde CDN (Full)");
     </script>
-
-    <!-- Favicon -->
-    <link rel="icon" href="assets/favicon.ico" />
-
-    <!-- CSS Personalizado -->
-    <link rel="stylesheet" href="./src/styles/main.css" />
   </head>
-  <body class="bg-gray-50">
-    <div id="app">
-      <!-- La aplicación se cargará aquí -->
-      <div class="flex justify-center items-center h-screen">
-        <div class="text-center">
+  <body
+    class="h-full antialiased text-slate-800 bg-slate-50 selection:bg-primary selection:text-white"
+  >
+    <div id="app" class="h-full">
+      <div class="flex flex-col justify-center items-center h-screen bg-white">
+        <div class="relative">
           <div
-            class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto"
+            class="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-primary"
           ></div>
-          <p class="mt-4 text-gray-600">Cargando Mi Gestión...</p>
+          <div
+            class="absolute top-0 left-0 h-16 w-16 rounded-full border-4 border-primary/20 animate-pulse"
+          ></div>
         </div>
+        <p class="mt-6 text-slate-500 font-medium animate-pulse">
+          Cargando entorno seguro...
+        </p>
       </div>
     </div>
 
-    <!-- JavaScript principal -->
     <script type="module" src="./src/app.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
   </body>

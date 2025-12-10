@@ -1,256 +1,46 @@
-/* src/styles/main.css - Estilos principales */
+/* src/styles/main.css */
 
-/* Variables CSS */
-:root {
-  --primary-color: #2563eb;
-  --secondary-color: #7c3aed;
-  --success-color: #10b981;
-  --warning-color: #f59e0b;
-  --danger-color: #ef4444;
-  --background-color: #f8fafc;
-  --text-color: #334155;
-}
+/* --- Overrides para Librerías Externas --- */
 
-/* Estilos globales */
-body {
-  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
-    sans-serif;
-  color: var(--text-color);
-  background-color: var(--background-color);
-}
-
-/* Animaciones */
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.fade-in {
-  animation: fadeIn 0.3s ease-out;
-}
-
-/* Utilidades personalizadas */
-.card {
-  background: white;
-  border-radius: 0.75rem;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1),
-    0 2px 4px -1px rgba(0, 0, 0, 0.06);
-  transition: transform 0.2s, box-shadow 0.2s;
-}
-
-.card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1),
-    0 4px 6px -2px rgba(0, 0, 0, 0.05);
-}
-
-.btn-primary {
-  background: linear-gradient(
-    135deg,
-    var(--primary-color),
-    var(--secondary-color)
-  );
-  color: white;
-  font-weight: 500;
-  padding: 0.5rem 1.5rem;
-  border-radius: 0.5rem;
-  transition: all 0.2s;
-}
-
-.btn-primary:hover {
-  opacity: 0.9;
-  transform: scale(1.02);
-}
-
-/* Responsive */
-@media (max-width: 640px) {
-  .container {
-    padding-left: 1rem;
-    padding-right: 1rem;
-  }
-}
-
-/* Animaciones para mensajes */
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(-10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-@keyframes fadeOut {
-  from {
-    opacity: 1;
-    transform: translateY(0);
-  }
-  to {
-    opacity: 0;
-    transform: translateY(-10px);
-  }
-}
-
-.animate-fade-in {
-  animation: fadeIn 0.3s ease-out forwards;
-}
-
-.animate-fade-out {
-  animation: fadeOut 0.3s ease-out forwards;
-}
-
-/* Estilos específicos para formularios de auth */
-#authContainer {
-  position: relative;
-}
-
-.error-message,
-.success-message {
-  position: relative;
-  z-index: 10;
-}
-
-/* Mejoras para inputs con error */
-.input-error {
-  border-color: #f87171 !important;
-  box-shadow: 0 0 0 3px rgba(248, 113, 113, 0.1) !important;
-}
-
-.input-error:focus {
-  border-color: #ef4444 !important;
-  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.2) !important;
-}
-
-/* Estilos para botones deshabilitados */
-button:disabled {
+/* SortableJS Ghost State */
+.sortable-ghost {
   opacity: 0.5;
-  cursor: not-allowed;
+  background-color: #f1f5f9; /* slate-100 */
+  border: 2px dashed #94a3b8; /* slate-400 */
 }
 
-/* Spinner para loading */
-.spinner {
-  display: inline-block;
-  width: 1rem;
-  height: 1rem;
-  border: 2px solid rgba(255, 255, 255, 0.3);
-  border-radius: 50%;
-  border-top-color: #fff;
-  animation: spin 1s ease-in-out infinite;
-}
-
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-/* Estilos básicos para el handle */
 .drag-handle {
   cursor: grab;
 }
-
-/* Estilo del elemento fantasma (ghostClass) */
-.sortable-ghost {
-  opacity: 0.4;
-  background-color: #f3f4f6; /* color gris claro */
-  border: 2px dashed #9ca3af; /* borde punteado */
+.drag-handle:active {
+  cursor: grabbing;
 }
 
-/* --- Estilos para el Generador de Formularios --- */
-
-/* Hacer visibles los inputs, selects y textareas */
-.form-input,
-.form-select,
-.form-textarea {
-  display: block;
-  width: 100%; /* Ocupar todo el ancho disponible */
-  padding: 0.625rem 0.75rem; /* Padding cómodo */
-  font-size: 0.875rem;
-  line-height: 1.5rem;
-  color: #111827; /* Texto oscuro */
-  background-color: #ffffff; /* Fondo blanco explícito */
-  border: 1px solid #d1d5db; /* Borde gris visible */
-  border-radius: 0.5rem; /* Bordes redondeados */
-  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-  transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
-}
-
-/* Efecto al hacer clic (Foco) */
-.form-input:focus,
-.form-select:focus,
-.form-textarea:focus {
-  outline: none;
-  border-color: #3b82f6; /* Azul */
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2); /* Anillo azul */
-}
-
-/* Estilos específicos para el Checkbox */
-.form-checkbox {
-  height: 1.25rem;
-  width: 1.25rem;
-  color: #2563eb;
-  border: 1px solid #d1d5db;
-  border-radius: 0.25rem;
-  cursor: pointer;
-}
-
-/* Estilos para el Textarea */
-.form-textarea {
-  min-height: 80px; /* Altura mínima */
-}
-/* --- Layout del Formulario Dinámico --- */
-
-/* Apuntamos al formulario generado dentro del contenedor del editor */
-#dynamicFormContainer form {
-  display: grid;
-  grid-template-columns: 1fr; /* Móvil: 1 columna */
-  gap: 1.5rem; /* Espacio entre campos */
-}
-
-/* Para pantallas medianas (Tablets/PC) en adelante: 2 columnas */
-@media (min-width: 768px) {
-  #dynamicFormContainer form {
-    grid-template-columns: repeat(2, 1fr); /* 2 columnas iguales */
-  }
-
-  /* Excepción: Los textareas (notas largas) deberían ocupar todo el ancho */
-  #dynamicFormContainer form .field-wrapper:has(textarea),
-  #dynamicFormContainer form .mb-4:has(textarea) {
-    grid-column: span 2;
-  }
-}
-
-/* --- ESTILOS DE IMPRESIÓN (PDF) --- */
+/* --- Estilos de Impresión (Mantenidos y optimizados) --- */
 @media print {
-  /* 1. Ocultar todo por defecto */
+  @page {
+    margin: 2cm;
+  }
+
   body * {
     visibility: hidden;
   }
 
-  /* 2. Ocultar elementos específicos que puedan molestar */
+  /* Ocultar elementos de UI */
   nav,
-  #userMenuButton,
+  button,
   .no-print,
-  .no-print-section,
-  button {
+  .shadow-lg,
+  .bg-gradient-to-br {
     display: none !important;
   }
 
-  /* 3. Hacer visible SOLO la tarjeta del documento y sus hijos */
+  /* Mostrar solo el documento */
   #documentCard,
   #documentCard * {
     visibility: visible;
   }
 
-  /* 4. Posicionar la tarjeta para que ocupe la hoja */
   #documentCard {
     position: absolute;
     left: 0;
@@ -258,18 +48,12 @@ button:disabled {
     width: 100%;
     margin: 0;
     padding: 0;
-    border: none; /* Quitar bordes para que parezca documento nativo */
-    box-shadow: none; /* Quitar sombras */
+    border: none;
+    box-shadow: none;
+    background: white;
   }
 
-  /* 5. Ajustes de tipografía para papel */
-  body {
-    background-color: white;
-    font-size: 12pt;
-    color: black; /* Forzar negro puro para máxima nitidez */
-  }
-
-  /* Asegurar que los colores de fondo (ej: etiquetas verdes) se impriman */
+  /* Asegurar impresión de colores de fondo (etiquetas, headers de tablas) */
   * {
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;

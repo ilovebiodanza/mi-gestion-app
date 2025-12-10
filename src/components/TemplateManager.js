@@ -10,7 +10,7 @@ export class TemplateManager {
     this.currentView = "list";
     this.editingTemplateId = null;
 
-    // Instancias de sub-componentes con sus manejadores
+    // Instancias (Asumimos que estos componentes se actualizarán en el futuro)
     this.listComponent = new TemplateList({
       onNew: () => this.setView("create"),
       onImport: (file) => this.handleImport(file),
@@ -28,59 +28,45 @@ export class TemplateManager {
   }
 
   render() {
-    // Contenedor principal limpio donde se montarán las vistas
-    return `<div id="templateContent" class="bg-gray-50 min-h-[500px] p-4 rounded-xl"></div>`;
+    return `<div id="templateContent" class="min-h-[500px] animate-fade-in"></div>`;
   }
 
-  /**
-   * Cambia la vista actual (Router simple)
-   */
   async setView(view, id = null) {
     this.currentView = view;
     this.editingTemplateId = id;
-
     const container = document.getElementById("templateContent");
     if (!container) return;
 
-    // Mostrar spinner mientras cambia la vista
-    container.innerHTML = `<div class="flex justify-center py-20"><div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div></div>`;
+    this.renderLoading(container);
 
     if (view === "list") {
-      // Si vamos a la lista, cargamos los datos
       await this.loadTemplates();
     } else {
-      // Si es formulario (crear/editar)
       let template = null;
       if (id) {
         template = await templateService.getTemplateById(id);
       }
+      // Renderizamos el formulario (TemplateForm debería devolver HTML Tailwind también)
       container.innerHTML = this.formComponent.render(template);
       this.formComponent.setupListeners(container);
     }
   }
 
-  /**
-   * Carga y renderiza la lista de plantillas (Lógica de Negocio)
-   */
   async loadTemplates(categoryFilter = "all") {
     const container = document.getElementById("templateContent");
-    // Si el contenedor no existe o hemos cambiado de vista mientras cargaba, no hacemos nada
     if (
       !container ||
-      (this.currentView !== "list" && container.querySelector("#templateForm"))
+      (this.currentView !== "list" && container.querySelector("form"))
     )
       return;
 
-    try {
-      // Renderizar loading si no lo tiene
-      if (!container.querySelector(".animate-spin")) {
-        container.innerHTML = `<div class="flex justify-center py-20"><div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div></div>`;
-      }
+    // Solo mostramos loading si está vacío para evitar parpadeos en filtrado
+    if (!container.innerHTML.trim()) this.renderLoading(container);
 
+    try {
       const templates = await templateService.getUserTemplates();
       const categories = await templateService.getCategories();
 
-      // Filtrado
       let displayTemplates = templates;
       if (categoryFilter !== "all") {
         displayTemplates = templates.filter(
@@ -88,7 +74,6 @@ export class TemplateManager {
         );
       }
 
-      // Renderizar lista
       container.innerHTML = this.listComponent.render(
         displayTemplates,
         categories,
@@ -97,39 +82,44 @@ export class TemplateManager {
       this.listComponent.setupListeners(container);
     } catch (error) {
       console.error(error);
-      container.innerHTML = `<div class="text-red-500 text-center py-10 bg-red-50 rounded-lg border border-red-200">
-            <p class="font-bold">Error al cargar plantillas</p>
-            <p class="text-sm">${error.message}</p>
-          </div>`;
+      container.innerHTML = `
+        <div class="max-w-lg mx-auto mt-10 p-6 bg-red-50 border border-red-100 rounded-2xl text-center">
+            <div class="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-3 text-red-500">
+                <i class="fas fa-exclamation-triangle"></i>
+            </div>
+            <h3 class="text-red-800 font-bold">Error de Carga</h3>
+            <p class="text-red-600 text-sm mt-1">${error.message}</p>
+            <button onclick="document.getElementById('navHome').click()" class="mt-4 text-sm text-red-700 underline">Volver al inicio</button>
+        </div>`;
     }
   }
 
-  // --- Manejadores de Acción ---
+  renderLoading(container) {
+    container.innerHTML = `
+        <div class="flex flex-col items-center justify-center h-64">
+            <div class="animate-spin rounded-full h-10 w-10 border-b-2 border-primary"></div>
+            <p class="text-slate-400 text-sm mt-3 animate-pulse">Cargando gestor...</p>
+        </div>`;
+  }
 
+  // --- Handlers (Lógica intacta) ---
   async handleSave(data) {
     try {
       if (this.currentView === "edit" && this.editingTemplateId) {
         await templateService.updateTemplate(this.editingTemplateId, data);
-        alert("✅ Plantilla actualizada");
       } else {
         await templateService.createTemplate(data);
-        alert("✅ Plantilla creada");
       }
-      this.setView("list"); // Volver a la lista
+      this.setView("list");
     } catch (e) {
-      alert("Error al guardar: " + e.message);
+      alert("Error: " + e.message);
     }
   }
 
   async handleDelete(id) {
-    if (
-      confirm(
-        "¿Estás seguro de eliminar esta plantilla? Esta acción no se puede deshacer."
-      )
-    ) {
+    if (confirm("¿Eliminar plantilla? Esta acción es irreversible.")) {
       try {
         await templateService.deleteTemplate(id);
-        // Recargar la lista (sin cambiar de vista, ya estamos en 'list')
         this.loadTemplates();
       } catch (e) {
         alert("Error: " + e.message);
@@ -146,16 +136,14 @@ export class TemplateManager {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      // Nombre de archivo seguro
-      const safeName = (data.name || "plantilla")
+      a.download = `${(data.name || "plantilla")
         .replace(/[^a-z0-9]/gi, "_")
-        .toLowerCase();
-      a.download = `${safeName}.template.json`;
+        .toLowerCase()}.template.json`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
     } catch (e) {
-      alert("Error exportando: " + e.message);
+      alert("Error: " + e.message);
     }
   }
 
@@ -165,7 +153,6 @@ export class TemplateManager {
       try {
         const json = JSON.parse(e.target.result);
         await templateService.importTemplate(json);
-        alert("✅ Plantilla importada correctamente");
         this.loadTemplates();
       } catch (err) {
         alert("Error importando: " + err.message);

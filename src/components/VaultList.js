@@ -1,64 +1,53 @@
 // src/components/VaultList.js
 import { documentService } from "../services/documents/index.js";
-import { templateService } from "../services/templates/index.js"; // Importamos para obtener nombres/iconos
+import { templateService } from "../services/templates/index.js";
 
 export class VaultList {
   constructor(onDocumentSelect, onNewDocument) {
     this.onDocumentSelect = onDocumentSelect;
     this.onNewDocument = onNewDocument;
     this.documents = [];
-    this.templatesMap = {}; // Mapa para acceso rápido a info de plantillas (nombre, icono)
+    this.templatesMap = {};
     this.isLoading = false;
-    this.currentFilter = "all"; // 'all' o templateId
+    this.currentFilter = "all";
   }
 
-  /**
-   * Cargar documentos y plantillas
-   */
   async loadDocuments() {
     this.isLoading = true;
-    this.render();
+    this.render(); // Renderiza el Skeleton loader
 
     try {
-      // Cargamos documentos y plantillas en paralelo
       const [docs, templates] = await Promise.all([
         documentService.getAllDocuments(),
         templateService.getUserTemplates(),
       ]);
 
       this.documents = docs;
-
-      // Crear un mapa de plantillas para búsqueda rápida por ID { id: {name, icon, color} }
       this.templatesMap = templates.reduce((acc, t) => {
         acc[t.id] = t;
         return acc;
       }, {});
     } catch (error) {
       console.error("Error cargando vault:", error);
-      this.error = "No se pudieron cargar tus documentos seguros.";
+      this.error = "No se pudieron recuperar los datos seguros.";
     } finally {
       this.isLoading = false;
       this.render();
     }
   }
 
-  /**
-   * Obtener lista de filtros (Plantillas que tienen al menos un documento)
-   */
   getActiveFilters() {
-    // Contar documentos por plantilla
     const counts = this.documents.reduce((acc, doc) => {
       const tid = doc.templateId;
       acc[tid] = (acc[tid] || 0) + 1;
       return acc;
     }, {});
 
-    // Convertir a array para renderizar
     return Object.keys(counts).map((templateId) => {
       const template = this.templatesMap[templateId] || {
-        name: "Desconocido",
-        icon: "❓",
-        color: "#gray",
+        name: "Otros",
+        icon: "📦",
+        color: "#94a3b8", // slate-400
       };
       return {
         id: templateId,
@@ -74,21 +63,44 @@ export class VaultList {
     const container = document.getElementById("vaultListContainer");
     if (!container) return;
 
+    // 1. Estado de Carga (Skeleton UI)
     if (this.isLoading) {
       container.innerHTML = `
-        <div class="flex justify-center items-center py-12">
-          <div class="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600"></div>
-          <span class="ml-3 text-gray-500">Accediendo a la bóveda segura...</span>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 p-4">
+          ${Array(6)
+            .fill(0)
+            .map(
+              () => `
+            <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 animate-pulse">
+              <div class="flex items-center space-x-4 mb-4">
+                <div class="h-12 w-12 bg-slate-200 rounded-lg"></div>
+                <div class="flex-1 space-y-2">
+                  <div class="h-4 bg-slate-200 rounded w-3/4"></div>
+                  <div class="h-3 bg-slate-200 rounded w-1/2"></div>
+                </div>
+              </div>
+              <div class="h-2 bg-slate-200 rounded w-full mt-4"></div>
+            </div>
+          `
+            )
+            .join("")}
         </div>
       `;
       return;
     }
 
+    // 2. Estado de Error
     if (this.error) {
       container.innerHTML = `
-        <div class="bg-red-50 border-l-4 border-red-500 p-4 rounded-r">
-          <p class="text-red-700">${this.error}</p>
-          <button id="retryLoadBtn" class="mt-2 text-sm text-red-600 underline hover:text-red-800">Reintentar</button>
+        <div class="flex flex-col items-center justify-center py-12 text-center px-4">
+          <div class="bg-red-50 p-4 rounded-full mb-4">
+            <i class="fas fa-exclamation-triangle text-3xl text-red-500"></i>
+          </div>
+          <h3 class="text-lg font-bold text-slate-800">Hubo un problema</h3>
+          <p class="text-slate-500 mb-6">${this.error}</p>
+          <button id="retryLoadBtn" class="px-6 py-2 bg-white border border-slate-300 rounded-lg shadow-sm hover:bg-slate-50 font-medium text-slate-700 transition">
+            Intentar nuevamente
+          </button>
         </div>
       `;
       document
@@ -97,6 +109,7 @@ export class VaultList {
       return;
     }
 
+    // 3. Estado Vacío (Sin documentos)
     if (this.documents.length === 0) {
       container.innerHTML = this.renderEmptyState();
       document
@@ -105,33 +118,36 @@ export class VaultList {
       return;
     }
 
-    // Filtrar documentos según selección
+    // 4. Renderizado Normal
     const filteredDocs =
       this.currentFilter === "all"
         ? this.documents
         : this.documents.filter((d) => d.templateId === this.currentFilter);
 
-    // Renderizar Filtros y Lista
     container.innerHTML = `
-      <div class="mb-6 overflow-x-auto pb-2 scrollbar-hide">
-        <div class="flex space-x-2">
+      <div class="p-1">
+        <div class="flex space-x-3 mb-8 overflow-x-auto pb-4 no-scrollbar items-center">
             ${this.renderFilters()}
         </div>
-      </div>
 
-      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 animate-fade-in">
-        ${filteredDocs.map((doc) => this.renderDocumentCard(doc)).join("")}
-      </div>
-      
-      ${
-        filteredDocs.length === 0
-          ? `
-        <div class="text-center py-8 text-gray-500 bg-gray-50 rounded-lg border border-dashed border-gray-300">
-            No hay documentos en esta categoría.
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-fade-in">
+          ${filteredDocs.map((doc) => this.renderDocumentCard(doc)).join("")}
         </div>
-      `
-          : ""
-      }
+        
+        ${
+          filteredDocs.length === 0
+            ? `
+          <div class="flex flex-col items-center justify-center py-16 bg-white rounded-2xl border border-dashed border-slate-300">
+             <i class="fas fa-filter text-4xl text-slate-300 mb-3"></i>
+             <p class="text-slate-500 font-medium">No hay documentos en esta categoría.</p>
+             <button class="mt-4 text-primary hover:text-primary-hover font-medium text-sm" data-filter="all" onclick="document.querySelector('[data-filter=all]').click()">
+               Ver todos los documentos
+             </button>
+          </div>
+        `
+            : ""
+        }
+      </div>
     `;
 
     this.setupListeners(container);
@@ -140,59 +156,61 @@ export class VaultList {
   renderFilters() {
     const activeFilters = this.getActiveFilters();
 
-    // Botón "Todos"
-    let html = `
-      <button class="filter-btn flex items-center px-4 py-2 rounded-full text-sm font-medium transition whitespace-nowrap border ${
-        this.currentFilter === "all"
-          ? "bg-gray-800 text-white border-gray-800 shadow-md"
-          : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"
-      }" data-filter="all">
-        <span class="mr-2">📂</span> Todos (${this.documents.length})
-      </button>
-    `;
+    // Helper para generar botones
+    const createBtn = (id, label, icon, count, color = null) => {
+      const isActive = this.currentFilter === id;
+      // Estilo base
+      let classes =
+        "filter-btn flex-shrink-0 flex items-center px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200 border cursor-pointer select-none ";
 
-    // Botones por Plantilla
+      if (isActive) {
+        classes +=
+          "bg-slate-800 text-white border-slate-800 shadow-lg shadow-slate-200 scale-105";
+        // Si tiene color personalizado y está activo, usamos ese color
+        if (color)
+          return `<button class="${classes}" style="background-color: ${color}; border-color: ${color};" data-filter="${id}"><span class="mr-2">${icon}</span>${label}<span class="ml-2 bg-white/20 px-2 py-0.5 rounded-full text-xs">${count}</span></button>`;
+      } else {
+        classes +=
+          "bg-white text-slate-600 border-slate-200 hover:border-primary/30 hover:bg-slate-50 hover:shadow-sm";
+      }
+
+      return `
+        <button class="${classes}" data-filter="${id}">
+          <span class="mr-2">${icon}</span>
+          ${label}
+          <span class="ml-2 ${
+            isActive ? "bg-white/20" : "bg-slate-100 text-slate-500"
+          } px-2 py-0.5 rounded-full text-xs transition-colors">
+            ${count}
+          </span>
+        </button>
+      `;
+    };
+
+    let html = createBtn("all", "Todos", "📂", this.documents.length);
     html += activeFilters
-      .map(
-        (f) => `
-      <button class="filter-btn flex items-center px-4 py-2 rounded-full text-sm font-medium transition whitespace-nowrap border ${
-        this.currentFilter === f.id
-          ? "text-white shadow-md transform scale-105"
-          : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"
-      }" 
-      style="${
-        this.currentFilter === f.id
-          ? `background-color: ${f.color}; border-color: ${f.color};`
-          : ""
-      }"
-      data-filter="${f.id}">
-        <span class="mr-2">${f.icon}</span> ${
-          f.name
-        } <span class="ml-2 opacity-75 text-xs bg-black bg-opacity-10 px-1.5 rounded-full">${
-          f.count
-        }</span>
-      </button>
-    `
-      )
+      .map((f) => createBtn(f.id, f.name, f.icon, f.count, f.color))
       .join("");
-
     return html;
   }
 
   renderEmptyState() {
     return `
-      <div class="text-center py-12 bg-white rounded-xl shadow-sm border border-gray-200">
-        <div class="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-          <i class="fas fa-box-open text-gray-400 text-3xl"></i>
+      <div class="text-center py-16 bg-white rounded-2xl shadow-sm border border-slate-200 mx-4">
+        <div class="relative w-24 h-24 mx-auto mb-6">
+           <div class="absolute inset-0 bg-blue-100 rounded-full animate-ping opacity-25"></div>
+           <div class="relative bg-blue-50 w-full h-full rounded-full flex items-center justify-center">
+             <i class="fas fa-shield-alt text-primary text-4xl"></i>
+           </div>
         </div>
-        <h3 class="text-lg font-medium text-gray-900">Tu bóveda está vacía</h3>
-        <p class="mt-1 text-gray-500 max-w-sm mx-auto">Comienza a proteger tu información personal creando tu primer documento cifrado.</p>
-        <div class="mt-6">
-          <button id="createFirstDocBtn" class="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none">
-            <i class="fas fa-plus mr-2"></i>
-            Crear Nuevo Documento
-          </button>
-        </div>
+        <h3 class="text-xl font-bold text-slate-800 mb-2">Tu Bóveda está lista</h3>
+        <p class="text-slate-500 max-w-md mx-auto mb-8">
+          Tus datos personales merecen la mejor seguridad. Comienza agregando tu primer registro cifrado de extremo a extremo.
+        </p>
+        <button id="createFirstDocBtn" class="inline-flex items-center px-6 py-3 bg-primary hover:bg-primary-hover text-white rounded-xl shadow-lg shadow-blue-500/30 font-bold transition-all hover:-translate-y-1">
+          <i class="fas fa-plus mr-2"></i>
+          Crear Primer Documento
+        </button>
       </div>
     `;
   }
@@ -204,57 +222,60 @@ export class VaultList {
       day: "numeric",
     });
 
-    // Obtener color e icono frescos de la plantilla (por si cambiaron)
     const template = this.templatesMap[doc.templateId] || {};
     const icon = template.icon || doc.metadata.icon || "📄";
-    const color = template.color || "#3B82F6";
+    const color = template.color || "#64748b"; // slate-500 default
 
     return `
-      <div class="vault-card bg-white rounded-lg border border-gray-200 shadow-sm hover:shadow-md hover:border-blue-300 transition-all cursor-pointer p-4 group" data-id="${
+      <div class="vault-card group relative bg-white rounded-2xl p-5 border border-slate-200 shadow-sm hover:shadow-xl transition-all duration-300 hover:-translate-y-1 cursor-pointer overflow-hidden" data-id="${
         doc.id
       }">
-        <div class="flex items-start justify-between">
-          <div class="flex items-center space-x-3">
-            <div class="flex-shrink-0">
-              <span class="inline-flex items-center justify-center h-10 w-10 rounded-lg text-xl" 
-                    style="background-color: ${color}20; color: ${color}">
-                ${icon}
-              </span>
+        
+        <div class="absolute top-0 left-0 right-0 h-1.5" style="background-color: ${color}"></div>
+        
+        <div class="flex items-start justify-between mt-2">
+          <div class="flex items-center gap-4">
+            <div class="w-12 h-12 rounded-xl flex items-center justify-center text-2xl shadow-inner" 
+                 style="background-color: ${color}15; color: ${color}">
+              ${icon}
             </div>
-            <div class="min-w-0 flex-1">
-              <p class="text-sm font-bold text-gray-900 truncate">
+            <div class="min-w-0">
+              <h4 class="text-base font-bold text-slate-800 truncate pr-2 group-hover:text-primary transition-colors">
                 ${doc.metadata.title || "Sin Título"}
-              </p>
-              <p class="text-xs text-gray-500 truncate">
-                ${template.name || "Documento"} • ${date}
+              </h4>
+              <p class="text-xs font-medium text-slate-500 uppercase tracking-wide">
+                ${template.name || "Documento"}
               </p>
             </div>
           </div>
-          <div class="opacity-0 group-hover:opacity-100 transition-opacity">
-            <i class="fas fa-chevron-right text-gray-400"></i>
+          
+          <div class="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center text-slate-300 group-hover:bg-primary group-hover:text-white transition-all">
+            <i class="fas fa-chevron-right text-xs"></i>
           </div>
         </div>
-        <div class="mt-3 flex items-center justify-between text-xs">
-          <div class="flex items-center text-green-600 bg-green-50 px-2 py-1 rounded">
-            <i class="fas fa-lock mr-1"></i> E2EE
-          </div>
-          <span class="text-gray-400 font-mono">v${doc.version || 1}</span>
+
+        <div class="mt-6 pt-4 border-t border-slate-100 flex items-center justify-between text-xs">
+           <div class="flex items-center text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-md font-medium">
+             <i class="fas fa-lock mr-1.5 text-[10px]"></i> E2EE
+           </div>
+           <div class="flex items-center text-slate-400">
+             <i class="far fa-clock mr-1.5"></i> ${date}
+           </div>
         </div>
       </div>
     `;
   }
 
   setupListeners(container) {
-    // Listeners de Filtros
     container.querySelectorAll(".filter-btn").forEach((btn) => {
       btn.addEventListener("click", (e) => {
-        const filter = e.currentTarget.dataset.filter;
-        this.currentFilter = filter;
-        this.render(); // Re-renderizar solo la vista (no recarga datos de red)
+        // Encontrar el botón clickeado incluso si se clickea en el icono hijo
+        const target = e.currentTarget;
+        this.currentFilter = target.dataset.filter;
+        this.render();
       });
     });
 
-    // Listeners de Tarjetas
     container.querySelectorAll(".vault-card").forEach((card) => {
       card.addEventListener("click", () => {
         const docId = card.dataset.id;
