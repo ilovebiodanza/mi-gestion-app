@@ -201,8 +201,8 @@ export class DocumentViewer {
       return `<div class="py-4"><dt class="text-sm font-medium text-gray-500 mb-1">${field.label}</dt><dd class="text-gray-400 italic text-sm border border-dashed border-gray-300 rounded p-3 text-center">Sin registros</dd></div>`;
     }
 
-    const isComplex = columns.length > 2;
-    const displayColumns = isComplex ? columns.slice(0, 2) : columns;
+    const isComplex = columns.length > 3;
+    const displayColumns = isComplex ? columns.slice(0, 3) : columns;
 
     let headersHtml = displayColumns
       .map(
