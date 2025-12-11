@@ -2,6 +2,8 @@
 
 import { templateFormGenerator } from "../services/templates/form-generator.js";
 import { documentService } from "../services/documents/index.js";
+// 👇👇👇 ESTA LÍNEA FALTABA 👇👇👇
+import { encryptionService } from "../services/encryption/index.js";
 
 export class DocumentEditor {
   constructor(initialData, onSaveSuccess, onCancel) {
@@ -19,100 +21,47 @@ export class DocumentEditor {
     this.isSubmitting = false;
 
     // LÓGICA DE SEGURIDAD E INICIALIZACIÓN
-    // Si estamos editando un documento existente y no tenemos la plantilla cargada
-    // (lo que implica que tampoco tenemos los datos descifrados), iniciamos el flujo de carga segura.
+    // Si estamos editando y no tenemos la plantilla (ni datos descifrados), iniciamos carga segura.
     if (this.isEditing && !this.template) {
       this.checkSecurityAndLoad();
     }
   }
 
   checkSecurityAndLoad() {
-    // 1. Verificamos si el servicio de cifrado tiene la llave maestra en memoria
     if (!encryptionService.isReady()) {
       console.log(
         "🔐 Bóveda cerrada. Solicitando llave para descifrar datos..."
       );
-
-      // 2. Si la bóveda está cerrada, llamamos al orquestador global (definido en app.js)
-      // para que muestre el Prompt de contraseña.
       if (window.app && window.app.requireEncryption) {
         window.app.requireEncryption(() => {
-          // Callback: Se ejecuta solo si el usuario ingresó la clave correctamente
           this.loadExistingDocument();
         });
       } else {
-        // Fallback de seguridad por si la app no cargó bien
         this.renderError(
           "Sistema de seguridad no disponible. Por favor recarga la página."
         );
       }
     } else {
-      // 3. Si la bóveda ya está abierta, cargamos directamente
       this.loadExistingDocument();
     }
   }
 
-  async handleSave() {
-    if (this.isSubmitting) return;
-
-    // 1. Validación básica de HTML5 (campos requeridos, tipos, etc.)
-    const form = document.querySelector(`form[id^="templateForm_"]`);
-    if (form && !form.checkValidity()) {
-      form.reportValidity();
-      return;
-    }
-
-    // 2. BARRERA DE SEGURIDAD (Critical Path)
-    // Antes de recolectar y procesar datos, aseguramos que podemos cifrarlos.
-    if (!encryptionService.isReady()) {
-      console.log("🔐 Llave requerida para cifrar antes de guardar.");
-
-      if (window.app && window.app.requireEncryption) {
-        window.app.requireEncryption(() => {
-          // Reintentamos el guardado una vez que la bóveda esté abierta
-          this.handleSave();
-        });
-      }
-      return;
-    }
-
-    // 3. Inicio del proceso de guardado
-    this.updateEditorState(
-      true,
-      this.isEditing ? "Cifrando y actualizando..." : "Cifrando y guardando..."
-    );
-
+  async loadExistingDocument() {
+    this.updateEditorState(true, "Descifrando datos...");
     try {
-      // Forzar evaluación de fórmulas matemáticas pendientes en inputs numéricos
-      document
-        .querySelectorAll(".math-input")
-        .forEach((inp) => this.evaluateMathInput(inp));
+      const loadedData = await documentService.loadDocumentForEditing(
+        this.documentId
+      );
+      this.template = loadedData.template;
+      this.initialFormData = loadedData.formData;
+      this.documentMetadata = loadedData.metadata;
 
-      // Esperar un micro-tick para asegurar que el DOM y los inputs hidden de las tablas se actualicen
-      await new Promise((r) => setTimeout(r, 50));
-
-      // Recolectar datos limpios del formulario
-      const formData = this.collectFormData();
-
-      let result;
-      if (this.isEditing) {
-        // Actualizar: El servicio se encargará de cifrar con la llave activa
-        result = await documentService.updateDocument(
-          this.documentId,
-          this.template,
-          formData
-        );
-      } else {
-        // Crear: El servicio generará un nuevo documento cifrado
-        result = await documentService.createDocument(this.template, formData);
-      }
-
-      // Notificar éxito al padre
-      if (this.onSaveSuccess) this.onSaveSuccess(result);
-    } catch (error) {
-      console.error("Error al guardar:", error);
-      alert("Error al procesar el guardado: " + error.message);
+      this.render();
+      this.setupEventListeners();
       this.updateEditorState(false);
+    } catch (error) {
+      console.error("Error al cargar documento:", error);
+      this.renderError("Error al cargar datos cifrados: " + error.message);
     }
   }
 
@@ -121,14 +70,16 @@ export class DocumentEditor {
       return `<div id="editorContainer" class="flex justify-center items-center py-20"><div class="animate-spin rounded-full h-12 w-12 border-4 border-slate-200 border-t-primary"></div></div>`;
     }
 
-    if (!this.template)
-      return `<div class="p-4 text-red-500">Error crítico: Plantilla perdida.</div>`;
+    if (!this.template) {
+      return `<div id="editorContainer" class="p-4 text-red-500">Error: Plantilla no definida.</div>`;
+    }
 
-    const title = this.isEditing ? "Editar Documento" : "Nuevo Documento";
-    const subtitle = this.isEditing
-      ? `Actualizando: ${this.documentMetadata?.title}`
-      : `Plantilla: ${this.template.name}`;
-    const submitText = this.isEditing ? "Guardar Cambios" : "Crear Documento";
+    const title = this.isEditing
+      ? `Editando: ${this.documentMetadata?.title || this.template.name}`
+      : `Nuevo Documento: ${this.template.name}`;
+    const submitText = this.isEditing
+      ? "Actualizar y Recifrar"
+      : "Guardar y Cifrar";
 
     return `
       <div id="editorContainer" class="max-w-4xl mx-auto bg-white rounded-2xl shadow-xl border border-slate-100 overflow-hidden animate-fade-in mb-10">
@@ -141,7 +92,7 @@ export class DocumentEditor {
             </div>
             <div>
               <h2 class="text-xl font-bold text-slate-800 tracking-tight">${title}</h2>
-              <p class="text-sm text-slate-500 font-medium">${subtitle}</p>
+              <p class="text-sm text-slate-500 font-medium">Los datos se cifrarán antes de salir de tu dispositivo.</p>
             </div>
           </div>
           <button id="closeEditorBtn" class="text-slate-400 hover:text-slate-600 p-2 rounded-full hover:bg-slate-100 transition"><i class="fas fa-times text-lg"></i></button>
@@ -161,14 +112,12 @@ export class DocumentEditor {
             </div>
             <div class="text-sm text-emerald-800">
               <p class="font-bold">Seguridad E2EE Activa</p>
-              <p class="opacity-90 mt-1">Antes de guardar, todos los datos serán cifrados en tu dispositivo usando tu llave maestra. El servidor solo recibirá código ilegible.</p>
+              <p class="opacity-90 mt-1">Antes de guardar, todos los datos serán cifrados usando tu llave maestra.</p>
             </div>
           </div>
 
           <div class="flex justify-end items-center gap-3 pt-6 border-t border-slate-200">
-            <button id="cancelDocBtn" class="px-5 py-2.5 bg-white border border-slate-300 text-slate-700 rounded-xl hover:bg-slate-50 font-medium transition shadow-sm">
-                Cancelar
-            </button>
+            <button id="cancelDocBtn" class="px-5 py-2.5 bg-white border border-slate-300 text-slate-700 rounded-xl hover:bg-slate-50 font-medium transition shadow-sm">Cancelar</button>
             <button id="saveDocBtn" class="px-6 py-2.5 bg-primary hover:bg-primary-hover text-white rounded-xl shadow-lg shadow-blue-500/20 font-bold transition-all transform active:scale-95 flex items-center">
               <i class="fas fa-save mr-2"></i> <span>${submitText}</span>
             </button>
@@ -177,7 +126,6 @@ export class DocumentEditor {
       </div>
       
       <style>
-        /* Hacemos que los campos de texto largo y tablas ocupen 2 columnas */
         #dynamicFormContainer > div:has(textarea),
         #dynamicFormContainer > div:has(.table-input-container) {
             grid-column: span 1;
@@ -187,30 +135,6 @@ export class DocumentEditor {
             #dynamicFormContainer > div:has(.table-input-container) {
                 grid-column: span 2;
             }
-        }
-        /* Estilos base para inputs generados */
-        #dynamicFormContainer label { display: block; font-size: 0.875rem; font-weight: 600; color: #334155; margin-bottom: 0.5rem; }
-        #dynamicFormContainer input[type="text"],
-        #dynamicFormContainer input[type="number"],
-        #dynamicFormContainer input[type="date"],
-        #dynamicFormContainer input[type="password"],
-        #dynamicFormContainer input[type="url"],
-        #dynamicFormContainer select,
-        #dynamicFormContainer textarea {
-            width: 100%;
-            padding: 0.75rem 1rem;
-            background-color: #ffffff;
-            border: 1px solid #cbd5e1;
-            border-radius: 0.75rem;
-            font-size: 0.875rem;
-            transition: all 0.2s;
-            outline: none;
-        }
-        #dynamicFormContainer input:focus,
-        #dynamicFormContainer select:focus,
-        #dynamicFormContainer textarea:focus {
-            border-color: #2563eb;
-            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
         }
       </style>
     `;
@@ -231,14 +155,11 @@ export class DocumentEditor {
     this.setupTableInteractivity();
   }
 
-  // En src/components/DocumentEditor.js
-
-  // En src/components/DocumentEditor.js
-
+  // ... (setupTableInteractivity se mantiene igual, ya lo tienes actualizado de la respuesta anterior para soportar URL y Password) ...
+  // Incluye aquí el bloque setupTableInteractivity COMPLETO de mi respuesta anterior sobre Tablas.
   setupTableInteractivity() {
     const containers = document.querySelectorAll(".table-input-container");
     containers.forEach((container) => {
-      // ... (Configuración inicial igual) ...
       container.className =
         "table-input-container w-full overflow-hidden border border-slate-200 rounded-xl bg-white shadow-sm";
       const fieldId = container.dataset.fieldId;
@@ -246,7 +167,6 @@ export class DocumentEditor {
       const tbody = container.querySelector(".table-body");
       const addBtn = container.querySelector(".add-row-btn");
 
-      // ... (Estilos de botones y headers igual) ...
       if (addBtn) {
         addBtn.className =
           "add-row-btn w-full py-3 bg-slate-50 hover:bg-slate-100 text-primary font-medium text-sm transition-colors border-t border-slate-200 flex items-center justify-center gap-2";
@@ -267,13 +187,12 @@ export class DocumentEditor {
         columnsDef = JSON.parse(container.nextElementSibling.textContent);
       } catch (e) {}
 
-      // --- RENDERIZADO DE CELDA ---
+      // Renderizado de celdas (Versión Completa URL/Password)
       const renderCellInput = (col, val) => {
         const commonClass =
           "w-full text-sm border-0 bg-transparent focus:ring-0 p-2 placeholder-slate-300";
         const value = val !== undefined && val !== null ? val : "";
 
-        // 1. URL (Mantenemos la lógica anterior)
         if (col.type === "url") {
           let urlVal = val?.url || (typeof val === "string" ? val : "") || "";
           let textVal = val?.text || "";
@@ -294,8 +213,6 @@ export class DocumentEditor {
                  </div>
              </div>`;
         }
-
-        // 2. SECRETO / PASSWORD (¡NUEVO!)
         if (col.type === "secret") {
           return `
             <div class="relative group">
@@ -305,15 +222,11 @@ export class DocumentEditor {
                 </button>
             </div>`;
         }
-
-        // 3. BOOLEAN
         if (col.type === "boolean") {
           return `<div class="flex justify-center"><input type="checkbox" class="h-4 w-4 text-primary border-slate-300 rounded focus:ring-primary cursor-pointer cell-input" data-col-id="${
             col.id
           }" ${value ? "checked" : ""}></div>`;
         }
-
-        // 4. SELECT
         if (col.type === "select") {
           const opts = (col.options || [])
             .map(
@@ -326,7 +239,6 @@ export class DocumentEditor {
           return `<select class="${commonClass} cursor-pointer cell-input" data-col-id="${col.id}"><option value="">Seleccionar...</option>${opts}</select>`;
         }
 
-        // 5. RESTO (Texto, Números)
         const isNumeric = ["number", "currency", "percentage"].includes(
           col.type
         );
@@ -339,7 +251,6 @@ export class DocumentEditor {
           ? ""
           : "Escribir...";
         const inputType = col.type === "date" ? "date" : "text";
-
         return `<input type="${inputType}" class="${inputClass} cell-input" data-col-id="${col.id}" value="${value}" placeholder="${placeholder}">`;
       };
 
@@ -347,7 +258,6 @@ export class DocumentEditor {
         const tr = document.createElement("tr");
         tr.className =
           "group border-b border-slate-100 last:border-0 hover:bg-slate-50 transition-colors";
-
         let tds = "";
         columnsDef.forEach((col) => {
           tds += `<td class="p-2 border-r border-slate-100 last:border-0 align-top">${renderCellInput(
@@ -355,17 +265,10 @@ export class DocumentEditor {
             rowData[col.id]
           )}</td>`;
         });
-
-        tds += `<td class="w-10 text-center p-0 align-middle">
-                <button type="button" class="remove-row-btn w-full h-full min-h-[40px] text-slate-300 hover:text-red-500 hover:bg-red-50 transition-all">
-                    <i class="fas fa-times"></i>
-                </button>
-            </td>`;
-
+        tds += `<td class="w-10 text-center p-0 align-middle"><button type="button" class="remove-row-btn w-full h-full min-h-[40px] text-slate-300 hover:text-red-500 hover:bg-red-50 transition-all"><i class="fas fa-times"></i></button></td>`;
         tr.innerHTML = tds;
         tbody.appendChild(tr);
 
-        // Listeners Matemáticas
         tr.querySelectorAll(".math-input").forEach((input) => {
           input.addEventListener("blur", () => this.evaluateMathInput(input));
           input.addEventListener(
@@ -375,8 +278,6 @@ export class DocumentEditor {
               this.evaluateMathInput(input)
           );
         });
-
-        // Listeners URL (Sincronización)
         tr.querySelectorAll(".url-cell-group").forEach((group) => {
           const hidden = group.querySelector(".url-json-store");
           const linkInput = group.querySelector(".url-part-link");
@@ -391,8 +292,6 @@ export class DocumentEditor {
           linkInput.addEventListener("input", syncUrl);
           textInput.addEventListener("input", syncUrl);
         });
-
-        // Listener PASSWORD (¡NUEVO!)
         tr.querySelectorAll(".toggle-pass-cell").forEach((btn) => {
           btn.addEventListener("click", () => {
             const input = btn.previousElementSibling;
@@ -410,19 +309,15 @@ export class DocumentEditor {
         });
       };
 
-      // Inicialización y Listeners generales...
       const initialData = JSON.parse(hiddenInput.value || "[]");
       initialData.forEach((row) => renderRow(row));
-
       addBtn.addEventListener("click", () => renderRow({}));
-
       tbody.addEventListener("click", (e) => {
         if (e.target.closest(".remove-row-btn")) {
           e.target.closest("tr").remove();
           updateHiddenInput();
         }
       });
-
       tbody.addEventListener("input", () => updateHiddenInput());
       tbody.addEventListener("change", () => updateHiddenInput());
 
@@ -434,7 +329,6 @@ export class DocumentEditor {
             const colId = input.dataset.colId;
             const colDef = columnsDef.find((c) => c.id === colId);
             let val;
-
             if (colDef && colDef.type === "url") {
               try {
                 val = JSON.parse(input.value);
@@ -461,7 +355,6 @@ export class DocumentEditor {
     });
   }
 
-  // --- LÓGICA MATEMÁTICA Y GUARDADO (Mantenida, mejoras visuales en evaluate) ---
   setupMathCalculations() {
     this.template.fields
       .filter((f) => ["number", "currency", "percentage"].includes(f.type))
@@ -469,7 +362,7 @@ export class DocumentEditor {
         const input = document.getElementById(field.id);
         if (!input) return;
         if (!input.placeholder) input.placeholder = "0.00 (admite fórmulas)";
-        input.classList.add("font-mono", "text-right"); // Alineación numérica
+        input.classList.add("font-mono", "text-right");
 
         input.addEventListener(
           "keydown",
@@ -490,7 +383,6 @@ export class DocumentEditor {
         if (isFinite(result)) {
           input.value = Math.round(result * 100) / 100;
           input.dispatchEvent(new Event("input", { bubbles: true }));
-          // Feedback Visual Mejorado
           input.classList.add(
             "bg-emerald-50",
             "text-emerald-700",
@@ -514,6 +406,94 @@ export class DocumentEditor {
     }
   }
 
+  async handleSave() {
+    if (this.isSubmitting) return;
+
+    const form = document.querySelector(`form[id^="templateForm_"]`);
+    if (form && !form.checkValidity()) {
+      form.reportValidity();
+      return;
+    }
+
+    if (!encryptionService.isReady()) {
+      console.log("🔐 Llave requerida para cifrar antes de guardar.");
+      if (window.app && window.app.requireEncryption) {
+        window.app.requireEncryption(() => {
+          this.handleSave();
+        });
+      }
+      return;
+    }
+
+    this.updateEditorState(
+      true,
+      this.isEditing ? "Cifrando y actualizando..." : "Cifrando y guardando..."
+    );
+
+    try {
+      document
+        .querySelectorAll(".math-input")
+        .forEach((inp) => this.evaluateMathInput(inp));
+      await new Promise((r) => setTimeout(r, 50));
+
+      const formData = this.collectFormData();
+
+      let result;
+      if (this.isEditing) {
+        result = await documentService.updateDocument(
+          this.documentId,
+          this.template,
+          formData
+        );
+      } else {
+        result = await documentService.createDocument(this.template, formData);
+      }
+
+      if (this.onSaveSuccess) this.onSaveSuccess(result);
+    } catch (error) {
+      console.error("Error al guardar:", error);
+      alert("Error al procesar el guardado: " + error.message);
+      this.updateEditorState(false);
+    }
+  }
+
+  collectFormData() {
+    const formData = {};
+    this.template.fields.forEach((field) => {
+      if (field.type === "url") {
+        const u = document.getElementById(`${field.id}_url`);
+        const t = document.getElementById(`${field.id}_text`);
+        if (u)
+          formData[field.id] = {
+            url: u.value.trim(),
+            text: t ? t.value.trim() : "",
+          };
+        return;
+      }
+      const input = document.getElementById(field.id);
+      if (input) {
+        if (field.type === "boolean") formData[field.id] = input.checked;
+        else if (["number", "currency", "percentage"].includes(field.type)) {
+          let val = input.value;
+          try {
+            if (/[\+\-\*\/]/.test(val))
+              val = new Function('"use strict";return (' + val + ")")();
+          } catch (e) {}
+          formData[field.id] = val === "" || isNaN(val) ? null : Number(val);
+        } else if (field.type === "table") {
+          try {
+            formData[field.id] = JSON.parse(input.value || "[]");
+          } catch (e) {
+            formData[field.id] = [];
+          }
+        } else {
+          formData[field.id] = input.value;
+        }
+      }
+    });
+    return formData;
+  }
+
   updateEditorState(isLoading, message = null) {
     this.isSubmitting = isLoading;
     const btn = document.getElementById("saveDocBtn");
@@ -531,7 +511,6 @@ export class DocumentEditor {
       btn.classList.remove("opacity-80", "cursor-wait");
     }
 
-    // Deshabilitar inputs
     const container = document.getElementById("dynamicFormContainer");
     if (container) {
       const elements = container.querySelectorAll(

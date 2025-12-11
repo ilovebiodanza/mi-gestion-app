@@ -1,14 +1,9 @@
 // src/services/templates/template-storage.js
 
-// Ruta corregida: un nivel hacia atrás
 import { firebaseService } from "../firebase-cdn.js";
 
 const APP_ID = "mi-gestion-v1";
 
-/**
- * Servicio para manejar la persistencia de las plantillas (Firestore y LocalStorage)
- * Contiene la lógica original de loadUserTemplates, saveUserTemplates y sync/check.
- */
 class TemplateStorage {
   constructor(userId, appId = APP_ID) {
     this.userId = userId;
@@ -39,10 +34,9 @@ class TemplateStorage {
     if (!this.userId) {
       throw new Error("ID de usuario no definido para Firestore.");
     }
-    // Ruta: artifacts/{appId}/users/{userId}/metadata/templates
-    return firebaseService.doc(
-      `artifacts/${this.appId}/users/${this.userId}/metadata/templates`
-    );
+    // 👇👇👇 RUTA CORREGIDA PARA CUMPLIR REGLAS DE SEGURIDAD 👇👇👇
+    // Guardamos todas las plantillas en un solo documento de configuración
+    return firebaseService.doc(`users/${this.userId}/templates/config`);
   }
 
   async loadFromFirestore() {
@@ -60,11 +54,10 @@ class TemplateStorage {
         return templates;
       }
 
-      // Si el documento no existe
       return [];
     } catch (error) {
       console.error("❌ Error al cargar de Firestore:", error);
-      return null; // Retornar null para indicar un fallo que necesita fallback
+      return null;
     }
   }
 
@@ -76,13 +69,12 @@ class TemplateStorage {
 
       const templatesRef = this.getTemplatesRef();
       const templatesData = {
-        userId: this.userId,
-        appId: this.appId,
-        templates: templates,
-        lastUpdated: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
         count: templates.length,
+        templates: templates, // Guardamos el array completo
       };
 
+      // Usamos setDoc con merge para no borrar otros campos si los hubiera
       await firebaseService.setDoc(templatesRef, templatesData, {
         merge: true,
       });
@@ -91,54 +83,44 @@ class TemplateStorage {
       await this.saveToLocalStorage(templates); // Backup local
     } catch (error) {
       console.error("❌ Error al guardar en Firestore:", error);
-      throw new Error("Fallo al guardar plantillas en la nube.");
+      // Lanzamos el error para que la UI se entere
+      throw error;
     }
   }
 
-  // --- Lógica de Sincronización y Migración (Original) ---
-
-  async migrateToFirestore() {
-    console.log("🚚 Migrando plantillas a Firestore...");
-    const localTemplates = await this.loadFromLocalStorage();
-
-    if (localTemplates.length > 0) {
-      await this.saveToFirestore(localTemplates);
-      console.log(
-        `✅ ${localTemplates.length} plantillas migradas a Firestore`
-      );
-      return { success: true, migrated: localTemplates.length };
-    }
-
-    return { success: true, migrated: 0 };
-  }
+  // --- Sincronización ---
 
   async checkSyncStatus(localTemplates) {
     if (!this.userId) return { synced: false, error: "Usuario no autenticado" };
 
-    const templatesRef = this.getTemplatesRef();
-    const docSnap = await firebaseService.getDoc(templatesRef);
+    try {
+      const templatesRef = this.getTemplatesRef();
+      const docSnap = await firebaseService.getDoc(templatesRef);
 
-    if (docSnap.exists()) {
-      const data = docSnap.data();
-      const cloudTemplates = data.templates || [];
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        const cloudTemplates = data.templates || [];
+
+        return {
+          synced: cloudTemplates.length === localTemplates.length,
+          localCount: localTemplates.length,
+          cloudCount: cloudTemplates.length,
+          cloudTemplates: cloudTemplates,
+          lastUpdated: data.updatedAt,
+          needsSync: cloudTemplates.length !== localTemplates.length,
+        };
+      }
 
       return {
-        synced: cloudTemplates.length === localTemplates.length,
+        synced: false,
         localCount: localTemplates.length,
-        cloudCount: cloudTemplates.length,
-        cloudTemplates: cloudTemplates,
-        lastUpdated: data.lastUpdated,
-        needsSync: cloudTemplates.length !== localTemplates.length,
+        cloudCount: 0,
+        needsSync: true,
+        cloudTemplates: [],
       };
+    } catch (e) {
+      return { synced: false, error: e.message };
     }
-
-    return {
-      synced: false,
-      localCount: localTemplates.length,
-      cloudCount: 0,
-      needsSync: true,
-      cloudTemplates: [],
-    };
   }
 }
 

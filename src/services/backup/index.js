@@ -1,164 +1,131 @@
 // src/services/backup/index.js
-
 import { documentService } from "../documents/index.js";
 import { templateService } from "../templates/index.js";
-import { firebaseService } from "../firebase-cdn.js";
-import { authService } from "../auth.js";
-// 👇 NUEVA IMPORTACIÓN
 import { encryptionService } from "../encryption/index.js";
 
-export const backupService = {
-  /**
-   * Generar y descargar el archivo de respaldo
-   */
+class BackupService {
+  // --- EXPORTAR (Se mantiene simple, usa la llave actual) ---
   async createBackup() {
-    try {
-      console.log("📦 Iniciando proceso de respaldo...");
+    const documents = await documentService.getAllDocuments();
+    const templates = await templateService.getUserTemplates();
 
-      const templates = await templateService.getUserTemplates();
-      const documents = await documentService.getAllDocuments();
+    const backupData = {
+      version: 1,
+      createdAt: new Date().toISOString(),
+      documents,
+      templates, // Las plantillas no suelen estar cifradas en contenido, solo metadatos
+      type: "mi_gestion_backup_e2ee",
+    };
 
-      const backupData = {
-        metadata: {
-          version: "1.0",
-          appName: "Mi Gestión",
-          exportedAt: new Date().toISOString(),
-          totalDocuments: documents.length,
-          totalTemplates: templates.length,
-        },
-        data: {
-          templates: templates,
-          vault: documents,
-        },
-      };
+    const fileName = `backup_migestion_${new Date()
+      .toISOString()
+      .slice(0, 10)}.json`;
+    const blob = new Blob([JSON.stringify(backupData, null, 2)], {
+      type: "application/json",
+    });
 
-      const dataStr = JSON.stringify(backupData, null, 2);
-      const blob = new Blob([dataStr], { type: "application/json" });
-      const url = URL.createObjectURL(blob);
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
 
-      const link = document.createElement("a");
-      link.href = url;
-      const dateStr = new Date().toISOString().slice(0, 10);
-      link.download = `respaldo_migestion_${dateStr}.json`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+    return { count: documents.length };
+  }
 
-      return { success: true, count: documents.length };
-    } catch (error) {
-      console.error("Error al crear respaldo:", error);
-      throw error;
-    }
-  },
+  // --- RESTAURAR (Lógica Inteligente) ---
 
   /**
-   * Leer archivo y restaurar datos en Firebase (Con validación de clave)
+   * Intenta restaurar. Si falla el descifrado, lanza error para pedir clave.
+   * @param {File} file - Archivo JSON
+   * @param {string} legacyPassword - (Opcional) Contraseña antigua si la actual falla
    */
-  async restoreBackup(file) {
+  async restoreBackup(file, legacyPassword = null) {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
 
       reader.onload = async (e) => {
         try {
-          const content = JSON.parse(e.target.result);
+          const data = JSON.parse(e.target.result);
+          if (data.type !== "mi_gestion_backup_e2ee")
+            throw new Error("Formato de archivo no válido");
 
-          // 1. Validaciones de formato
-          if (!content.data || !content.data.templates || !content.data.vault) {
-            throw new Error("El archivo no es válido o está dañado.");
+          const docs = data.documents || [];
+          const tpls = data.templates || [];
+          let keyToUse = null;
+
+          // 1. Determinar qué llave usar
+          if (legacyPassword) {
+            console.log("🔓 Intentando restaurar con contraseña Legacy...");
+            keyToUse = await encryptionService.deriveTemporaryKey(
+              legacyPassword
+            );
           }
 
-          const user = authService.getCurrentUser();
-          if (!user) throw new Error("Debes iniciar sesión para restaurar.");
-
-          // 👇👇👇 2. VALIDACIÓN DE SEGURIDAD (CANARY TEST) 👇👇👇
-          if (content.data.vault.length > 0) {
-            console.log("🔐 Verificando compatibilidad de contraseña...");
+          // 2. "Prueba del Canario": Intentar descifrar el primer documento cifrado
+          if (docs.length > 0) {
             try {
-              // Tomamos el primer documento como prueba
-              const canaryDoc = content.data.vault[0];
-
-              // Intentamos descifrarlo en memoria (sin guardar nada aún)
-              if (!encryptionService.isReady()) {
-                throw new Error("Cifrado no inicializado");
-              }
-
-              await encryptionService.decryptDocument({
-                content: canaryDoc.encryptedContent,
-                metadata: canaryDoc.encryptionMetadata,
-              });
-
-              console.log(
-                "✅ Clave compatible. Procediendo con la restauración..."
+              // Si no hay keyToUse (legacy), decryptDocument usa la actual por defecto
+              await encryptionService.decryptDocument(
+                docs[0].encryptedContent,
+                keyToUse
               );
             } catch (cryptoError) {
-              console.error("❌ Prueba de descifrado fallida:", cryptoError);
-              // Si falla, lanzamos un error legible para el usuario y DETENEMOS TODO
-              throw new Error(
-                "⛔ CLAVE INCORRECTA\n\n" +
-                  "Este archivo de respaldo fue creado con una contraseña diferente a la actual.\n" +
-                  "No se puede restaurar porque los datos serían ilegibles."
-              );
+              // 🔥 AQUÍ ESTÁ LA MAGIA: Si falla, avisamos a la UI
+              return reject({
+                type: "KEY_MISMATCH",
+                message:
+                  "La contraseña actual no puede descifrar este respaldo.",
+              });
             }
           }
-          // 👆👆👆 FIN VALIDACIÓN 👆👆👆
 
-          console.log(
-            `📦 Iniciando restauración de ${content.data.vault.length} documentos...`
-          );
+          // 3. Procesar Documentos (Re-cifrar si es necesario)
+          let restoredCount = 0;
 
-          const batchPromises = [];
-
-          // A. Guardar Plantillas
-          const templatesRef = firebaseService.doc(
-            `artifacts/mi-gestion-v1/users/${user.uid}/metadata/templates`
-          );
-
-          const currentTemplates = await templateService.getUserTemplates();
-          const templateMap = new Map(currentTemplates.map((t) => [t.id, t]));
-
-          content.data.templates.forEach((t) => {
-            t.userId = user.uid;
-            templateMap.set(t.id, t);
-          });
-
-          batchPromises.push(
-            firebaseService.setDoc(
-              templatesRef,
-              {
-                templates: Array.from(templateMap.values()),
-                lastUpdated: new Date().toISOString(),
-                count: templateMap.size,
-              },
-              { merge: true }
-            )
-          );
-
-          // B. Restaurar Documentos del Vault
-          content.data.vault.forEach((doc) => {
-            doc.userId = user.uid;
-            const docRef = firebaseService.doc(
-              `artifacts/mi-gestion-v1/users/${user.uid}/vault/${doc.id}`
+          for (const doc of docs) {
+            // A. Descifrar (con llave actual o legacy)
+            const plainData = await encryptionService.decryptDocument(
+              doc.encryptedContent,
+              keyToUse
             );
-            batchPromises.push(firebaseService.setDoc(docRef, doc));
-          });
 
-          await Promise.all(batchPromises);
+            // B. Crear nuevo documento (Esto lo cifra automáticamente con la llave ACTUAL activa)
+            // Necesitamos la plantilla para saber qué campos usar, buscamos en el backup o en el sistema
+            const template =
+              tpls.find((t) => t.id === doc.templateId) ||
+              (await templateService.getTemplateById(doc.templateId));
 
-          await templateService.loadUserTemplates();
+            if (template) {
+              // Recreamos el documento para que tenga un ID nuevo y se cifre con la llave de hoy
+              await documentService.createDocument(template, plainData);
+              restoredCount++;
+            }
+          }
 
-          resolve({
-            success: true,
-            docsRestored: content.data.vault.length,
-            templatesRestored: content.data.templates.length,
-          });
-        } catch (err) {
-          console.error("Error en restauración:", err);
-          reject(err);
+          // 4. Restaurar Plantillas (si no existen)
+          let tplCount = 0;
+          for (const tpl of tpls) {
+            const exists = await templateService.getTemplateById(tpl.id);
+            if (!exists) {
+              await templateService.importTemplate(tpl);
+              tplCount++;
+            }
+          }
+
+          resolve({ docsRestored: restoredCount, templatesRestored: tplCount });
+        } catch (error) {
+          console.error("Restore Error:", error);
+          reject(error);
         }
       };
 
-      reader.onerror = () => reject(new Error("Error al leer el archivo"));
       reader.readAsText(file);
     });
-  },
-};
+  }
+}
+
+export const backupService = new BackupService();

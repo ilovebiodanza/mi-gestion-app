@@ -1,181 +1,78 @@
 // src/services/encryption/index.js
+import { deriveMasterKey, encryptData, decryptData } from "./crypto-utils.js";
 
-import * as keyDerivation from "./key-derivation.js";
-import * as encryptionCore from "./encryption-core.js";
-import * as documentEncryption from "./document-encryption.js";
-import { firebaseService } from "../firebase-cdn.js";
-
-/**
- * Servicio principal de cifrado E2EE (Sincronizado)
- */
 class EncryptionService {
   constructor() {
-    this.isInitialized = false;
     this.masterKey = null;
-    this.salt = null;
+    this.userId = null;
   }
 
-  /**
-   * Inicializar el servicio con la contraseña del usuario
-   */
-  async initialize(password) {
+  async initialize(password, uid) {
     try {
-      console.log("🔐 Inicializando servicio de cifrado...");
-
-      // 1. Obtener usuario actual para sincronizar el Salt
-      const user = firebaseService.getAuth().currentUser;
-      if (!user) throw new Error("Usuario no autenticado para iniciar cifrado");
-
-      // 2. Generar o recuperar salt (Sincronizado con Firestore)
-      this.salt = await this.getOrCreateSalt(user.uid);
-
-      // 3. Derivar clave maestra (MK) desde la contraseña usando PBKDF2
-      this.masterKey = await keyDerivation.deriveMasterKey(password, this.salt);
-
-      this.isInitialized = true;
-      console.log("✅ Servicio de cifrado inicializado correctamente");
-
+      this.userId = uid;
+      this.masterKey = await deriveMasterKey(password, uid);
+      console.log("🔓 Bóveda desbloqueada en memoria.");
       return true;
     } catch (error) {
-      console.error("❌ Error al inicializar cifrado:", error);
+      console.error("Error inicializando cifrado:", error);
+      this.masterKey = null;
       throw error;
     }
   }
 
-  /**
-   * Obtener o crear salt (Estrategia: Nube > Local > Generar)
-   */
-  async getOrCreateSalt(userId) {
-    const LOCAL_STORAGE_KEY = `encryption_salt_${userId}`;
-    let saltArray = null;
-
-    try {
-      // A. Intentar descargar de Firestore (Fuente de Verdad)
-      const saltRef = firebaseService.doc(
-        `artifacts/mi-gestion-v1/users/${userId}/metadata/encryption`
-      );
-      const docSnap = await firebaseService.getDoc(saltRef);
-
-      if (docSnap.exists() && docSnap.data().salt) {
-        console.log("☁️ Salt descargado de la nube");
-        // Convertir de array base (firestore) a Uint8Array
-        // Firestore guarda arrays numéricos como objetos a veces, aseguramos array
-        const cloudSalt = docSnap.data().salt;
-        // Convertir a array de JS estándar si viene como objeto
-        const saltValues = Object.values(cloudSalt);
-        saltArray = new Uint8Array(
-          saltValues.length > 0 ? saltValues : cloudSalt
-        );
-
-        // Actualizar caché local
-        localStorage.setItem(
-          LOCAL_STORAGE_KEY,
-          JSON.stringify(Array.from(saltArray))
-        );
-        return saltArray;
-      }
-    } catch (e) {
-      console.warn(
-        "⚠️ No se pudo conectar con Firestore para leer Salt, intentando local..."
-      );
-    }
-
-    // B. Si no está en la nube, buscar en LocalStorage (Caché o PC Original)
-    const storedSalt =
-      localStorage.getItem(LOCAL_STORAGE_KEY) ||
-      localStorage.getItem("encryption_salt"); // Fallback al key viejo
-
-    if (storedSalt) {
-      console.log("💾 Salt recuperado de almacenamiento local");
-      saltArray = new Uint8Array(JSON.parse(storedSalt));
-
-      // IMPORTANTE: Si lo tenemos local pero no estaba en la nube (Paso A falló o no existía),
-      // debemos SUBIRLO para que otros dispositivos lo tengan.
-      await this.saveSaltToFirestore(userId, saltArray);
-
-      return saltArray;
-    }
-
-    // C. Si no existe en ningún lado, generar uno nuevo (Usuario Nuevo)
-    console.log("✨ Generando nuevo salt (Primer uso)...");
-    const newSalt = keyDerivation.generateSalt();
-
-    // Guardar en ambos lados
-    localStorage.setItem(
-      LOCAL_STORAGE_KEY,
-      JSON.stringify(Array.from(newSalt))
-    );
-    await this.saveSaltToFirestore(userId, newSalt);
-
-    return newSalt;
-  }
-
-  /**
-   * Guardar el salt en Firestore
-   */
-  async saveSaltToFirestore(userId, salt) {
-    try {
-      const saltRef = firebaseService.doc(
-        `artifacts/mi-gestion-v1/users/${userId}/metadata/encryption`
-      );
-      // Convertir Uint8Array a Array normal para que Firestore lo acepte
-      await firebaseService.setDoc(
-        saltRef,
-        {
-          salt: Array.from(salt),
-          updatedAt: new Date().toISOString(),
-        },
-        { merge: true }
-      );
-      console.log("☁️ Salt sincronizado en la nube");
-    } catch (e) {
-      console.error("❌ Error al guardar Salt en la nube:", e);
-      // No lanzamos error para permitir funcionamiento offline/local temporal
-    }
-  }
-
-  // ... (Resto de métodos: encryptDocument, decryptDocument, etc. IGUAL QUE ANTES)
-
-  async encryptDocument(data, documentId = null) {
-    if (!this.isInitialized) throw new Error("Cifrado no inicializado");
-    return documentEncryption.encryptDocument(data, this.masterKey, documentId);
-  }
-
-  async decryptDocument(encryptedData) {
-    if (!this.isInitialized) throw new Error("Cifrado no inicializado");
-    return documentEncryption.decryptDocument(encryptedData, this.masterKey);
-  }
-
-  async encryptField(data, fieldName) {
-    if (!this.isInitialized) throw new Error("Cifrado no inicializado");
-    return encryptionCore.encryptField(data, this.masterKey, fieldName);
-  }
-
-  async decryptField(encryptedData, fieldName) {
-    if (!this.isInitialized) throw new Error("Cifrado no inicializado");
-    return encryptionCore.decryptField(
-      encryptedData,
-      this.masterKey,
-      fieldName
-    );
-  }
-
   isReady() {
-    return this.isInitialized && this.masterKey !== null;
+    return !!this.masterKey;
   }
 
-  getStatus() {
-    return {
-      isInitialized: this.isInitialized,
-      hasMasterKey: this.masterKey !== null,
-      algorithm: "PBKDF2 + AES-GCM-256",
-    };
-  }
-
-  clearKeys() {
+  clearKey() {
     this.masterKey = null;
-    this.isInitialized = false;
-    console.log("🗑️  Claves de cifrado limpiadas de memoria");
+    this.userId = null;
+    console.log("🔒 Bóveda bloqueada.");
+  }
+
+  // --- NUEVO: Generar una llave sin guardarla (para re-cifrado o importación) ---
+  async deriveTemporaryKey(password) {
+    if (!this.userId) throw new Error("Usuario no identificado");
+    return await deriveMasterKey(password, this.userId);
+  }
+
+  // --- NUEVO: Reemplazar la llave en memoria (post re-cifrado) ---
+  setNewMasterKey(newKey) {
+    this.masterKey = newKey;
+    console.log("🔑 Llave maestra actualizada en memoria.");
+  }
+
+  // --- NUEVO: Validar llave actual ---
+  async validateKey(password) {
+    if (!this.userId) return false;
+    try {
+      // Derivamos y comparamos con una prueba dummy (o simplemente si no falla)
+      // En V1, si logramos derivar es "valido" estructuralmente.
+      // La validación real ocurre al intentar descifrar algo.
+      await deriveMasterKey(password, this.userId);
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  async encryptDocument(data, specificKey = null) {
+    // Permite usar una llave específica (para re-cifrado) o la actual por defecto
+    const keyToUse = specificKey || this.masterKey;
+    if (!keyToUse) throw new Error("Bóveda cerrada (Encrypt).");
+    return await encryptData(data, keyToUse);
+  }
+
+  async decryptDocument(encryptedData, specificKey = null) {
+    const keyToUse = specificKey || this.masterKey;
+    if (!keyToUse) throw new Error("Bóveda cerrada (Decrypt).");
+
+    if (!encryptedData || !encryptedData.iv || !encryptedData.content) {
+      // Retornamos el dato tal cual si no parece cifrado (fallback legacy)
+      return encryptedData;
+    }
+
+    return await decryptData(encryptedData, keyToUse);
   }
 }
 

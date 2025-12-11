@@ -15,7 +15,6 @@ export class DocumentViewer {
     this.currencyConfig = getLocalCurrency();
 
     // Estado para manejar filtros y ordenamiento de tablas
-    // Estructura: { fieldId: { search: "", sortCol: null, sortDir: "asc" } }
     this.tableStates = {};
   }
 
@@ -26,77 +25,53 @@ export class DocumentViewer {
   async load() {
     this.renderLoading();
 
-    // 1. VERIFICACIÓN DE SEGURIDAD (La Muralla)
-    // Si el servicio de cifrado no tiene la llave maestra en memoria...
+    // VERIFICACIÓN DE SEGURIDAD
+    // Si la bóveda no está lista, pedimos la contraseña
     if (!encryptionService.isReady()) {
-      // Delegamos al orquestador global (app.js) para que pida la contraseña
       if (window.app && window.app.requireEncryption) {
         window.app.requireEncryption(() => {
-          // Callback: Si el usuario pone la clave correcta, reintentamos cargar
-          this.load();
+          this.load(); // Reintentar carga tras éxito
         });
-        return; // Detenemos la ejecución aquí
+        return;
       } else {
-        // Fallback por si algo crítico falló en la app
         this.renderError(
-          "El sistema de cifrado no está disponible. Por favor recarga la página."
+          "Sistema de cifrado no disponible. Recarga la página."
         );
         return;
       }
     }
 
     try {
-      // 2. OBTENER EL DOCUMENTO CIFRADO
       this.document = await documentService.getDocumentById(this.docId);
-
-      // 3. OBTENER LA PLANTILLA (Para saber qué campos mostrar)
       this.template = await templateService.getTemplateById(
         this.document.templateId
       );
 
-      if (!this.template) {
-        throw new Error(
-          "La plantilla asociada a este documento ya no existe o fue eliminada."
-        );
-      }
+      if (!this.template)
+        throw new Error("La plantilla original ya no existe.");
 
-      // 4. DESCIFRAR EL CONTENIDO
-      // Aquí usamos la llave maestra que ya validamos en el paso 1
-      this.decryptedData = await encryptionService.decryptDocument({
-        content: this.document.encryptedContent,
-        metadata: this.document.encryptionMetadata,
+      console.log("🔓 Descifrando documento...", this.document.id);
+
+      // Pasamos el contenido cifrado al servicio
+      this.decryptedData = await encryptionService.decryptDocument(
+        this.document.encryptedContent
+      );
+
+      // Inicializar estados de tablas si las hay
+      this.template.fields.forEach((f) => {
+        if (f.type === "table") {
+          this.tableStates[f.id] = {
+            search: "",
+            sortCol: null,
+            sortDir: "asc",
+          };
+        }
       });
 
-      // 5. INICIALIZAR ESTADOS DE TABLAS (Para Búsqueda y Ordenamiento)
-      // Recorremos los campos para preparar el estado de las tablas si las hay
-      if (this.template.fields) {
-        this.template.fields.forEach((f) => {
-          if (f.type === "table") {
-            // Inicializamos el estado solo si no existe
-            if (!this.tableStates[f.id]) {
-              this.tableStates[f.id] = {
-                search: "",
-                sortCol: null,
-                sortDir: "asc",
-              };
-            }
-          }
-        });
-      }
-
-      // 6. RENDERIZAR LA VISTA
       this.renderContent();
     } catch (error) {
-      console.error("Error al cargar documento:", error);
-
-      // Manejo específico de errores de descifrado (clave incorrecta o datos corruptos)
-      let msg = error.message || "Error desconocido al cargar.";
-      if (error.message.includes("decrypt")) {
-        msg =
-          "No se pudo descifrar el documento. Es posible que la contraseña maestra haya cambiado o los datos estén corruptos.";
-      }
-
-      this.renderError(msg);
+      console.error("Error:", error);
+      this.renderError(error.message);
     }
   }
 
@@ -142,7 +117,6 @@ export class DocumentViewer {
 
       case "secret":
         if (isTableContext) {
-          // Versión compacta para tabla
           return `
             <div class="relative group inline-flex items-center">
               <span class="text-xs text-slate-400 font-mono filter blur-[3px] group-hover:blur-none transition-all duration-300 cursor-pointer select-none">••••••</span>
@@ -323,9 +297,8 @@ export class DocumentViewer {
     this.setupContentListeners();
   }
 
-  // --- LÓGICA DE TABLAS MEJORADA (Búsqueda y Ordenamiento) ---
+  // --- LÓGICA DE TABLAS MEJORADA ---
 
-  // Función para obtener filas procesadas (filtradas y ordenadas)
   getProcessedRows(field, rows) {
     const state = this.tableStates[field.id] || {
       search: "",
@@ -337,11 +310,10 @@ export class DocumentViewer {
     // 1. Filtrado
     if (state.search) {
       const term = state.search.toLowerCase();
-      const columnsToCheck = field.columns.slice(0, 3); // Buscar solo en columnas visibles
+      const columnsToCheck = field.columns.slice(0, 3);
       processed = processed.filter((row) => {
         return columnsToCheck.some((col) => {
           let val = row[col.id];
-          // Manejar objetos especiales (URL)
           if (typeof val === "object" && val !== null) {
             val = val.text || val.url || "";
           }
@@ -356,38 +328,28 @@ export class DocumentViewer {
     if (state.sortCol) {
       const colId = state.sortCol;
       const colDef = field.columns.find((c) => c.id === colId);
-
       processed.sort((a, b) => {
         let valA = a[colId];
         let valB = b[colId];
-
-        // Normalizar valores nulos
         if (valA === undefined || valA === null) valA = "";
         if (valB === undefined || valB === null) valB = "";
-
-        // Extraer valor real si es URL
         if (typeof valA === "object") valA = valA.text || valA.url || "";
         if (typeof valB === "object") valB = valB.text || valB.url || "";
 
-        // Orden numérico
         if (
           colDef &&
           ["number", "currency", "percentage"].includes(colDef.type)
         ) {
           return state.sortDir === "asc" ? valA - valB : valB - valA;
         }
-
-        // Orden alfanumérico
         return state.sortDir === "asc"
           ? String(valA).localeCompare(String(valB))
           : String(valB).localeCompare(String(valA));
       });
     }
-
     return processed;
   }
 
-  // Función para generar SOLO el cuerpo de la tabla (usada al filtrar/ordenar)
   generateTableBodyHtml(field, rows) {
     const isComplex = field.columns.length > 3;
     const displayColumns = isComplex
@@ -422,7 +384,6 @@ export class DocumentViewer {
       .join("");
   }
 
-  // Función para renderizar el componente de tabla completo (Input + Tabla)
   renderTableField(field, value) {
     const rows = Array.isArray(value) ? value : [];
     if (rows.length === 0) {
@@ -439,13 +400,11 @@ export class DocumentViewer {
       sortDir: "asc",
     };
     const processedRows = this.getProcessedRows(field, rows);
-
     const isComplex = field.columns.length > 3;
     const displayColumns = isComplex
       ? field.columns.slice(0, 3)
       : field.columns;
 
-    // Headers con funcionalidad de click
     const headers = displayColumns
       .map((c) => {
         let sortIcon = '<i class="fas fa-sort text-slate-300 ml-1"></i>';
@@ -476,7 +435,6 @@ export class DocumentViewer {
                    rows.length
                  } total</span>
              </div>
-             
              <div class="relative max-w-xs w-full sm:w-64">
                  <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
                      <i class="fas fa-search text-xs"></i>
@@ -488,7 +446,6 @@ export class DocumentViewer {
                         value="${state.search}">
              </div>
          </div>
-
          <div class="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
              <div class="overflow-x-auto">
                  <table class="min-w-full divide-y divide-slate-100" id="table-${
@@ -515,7 +472,6 @@ export class DocumentViewer {
   }
 
   setupContentListeners() {
-    // Botones globales (se mantienen igual)
     ["closeViewerBtn", "backBtn"].forEach((id) =>
       document
         .getElementById(id)
@@ -536,7 +492,6 @@ export class DocumentViewer {
 
     const container = document.getElementById("documentViewerPlaceholder");
 
-    // 1. LISTENERS BÚSQUEDA EN TABLA
     container.querySelectorAll(".table-search-input").forEach((input) => {
       input.addEventListener("input", (e) => {
         const fieldId = e.target.dataset.fieldId;
@@ -546,27 +501,21 @@ export class DocumentViewer {
       });
     });
 
-    // 2. LISTENERS ORDENAMIENTO EN TABLA
     container.addEventListener("click", (e) => {
       const header = e.target.closest(".table-header-sort");
       if (header) {
         const fieldId = header.dataset.fieldId;
         const colId = header.dataset.colId;
         const state = this.tableStates[fieldId];
-
-        // Alternar orden
         if (state.sortCol === colId) {
           state.sortDir = state.sortDir === "asc" ? "desc" : "asc";
         } else {
           state.sortCol = colId;
           state.sortDir = "asc";
         }
-        // Re-renderizar SOLO la tabla (para actualizar iconos y filas)
         this.refreshTableFieldHTML(fieldId);
       }
 
-      // --- Manejo normal de botones (Secret, Copy, RowModal) ---
-      // (Se mantiene igual que antes, solo lo copiamos para no perderlo)
       const toggleBtn = e.target.closest(".toggle-secret-btn");
       if (toggleBtn) {
         const wrapper = toggleBtn.parentElement;
@@ -600,7 +549,6 @@ export class DocumentViewer {
         );
     });
 
-    // Modal cerrar
     const modal = document.getElementById("rowDetailModal");
     const closeModal = () => modal.classList.add("hidden");
     modal
@@ -611,34 +559,22 @@ export class DocumentViewer {
       ?.addEventListener("click", closeModal);
   }
 
-  // --- HELPERS ACTUALIZACIÓN UI PARCIAL ---
-
-  // Actualiza solo el TBODY (usado en Búsqueda)
   updateTableUI(fieldId) {
     const field = this.template.fields.find((f) => f.id === fieldId);
     const rows = this.decryptedData[fieldId] || [];
     const processed = this.getProcessedRows(field, rows);
-
     const tbody = document.getElementById(`tbody-${fieldId}`);
-    if (tbody) {
-      tbody.innerHTML = this.generateTableBodyHtml(field, processed);
-    }
+    if (tbody) tbody.innerHTML = this.generateTableBodyHtml(field, processed);
   }
 
-  // Re-renderiza todo el bloque de la tabla (usado en Sort para actualizar iconos header)
   refreshTableFieldHTML(fieldId) {
     const field = this.template.fields.find((f) => f.id === fieldId);
     const rows = this.decryptedData[fieldId] || [];
-
-    // Encontrar el div padre de la tabla actual y reemplazarlo con el nuevo HTML
     const table = document.getElementById(`table-${fieldId}`);
     if (table) {
-      // Subimos hasta encontrar el contenedor padre creado en renderTableField
       const containerDiv = table.closest(".py-6");
       if (containerDiv) {
         containerDiv.outerHTML = this.renderTableField(field, rows);
-        // IMPORTANTE: Al reemplazar HTML, los listeners del input de búsqueda se pierden.
-        // Hay que reasignarlos.
         const newContainer = document
           .getElementById(`table-${fieldId}`)
           .closest(".py-6");
@@ -648,23 +584,14 @@ export class DocumentViewer {
             this.tableStates[fieldId].search = e.target.value;
             this.updateTableUI(fieldId);
           });
-          // Poner foco de vuelta al input si fue una búsqueda (aunque sort no usa input)
-          // En caso de sort, no necesitamos focus.
         }
       }
     }
   }
 
-  // ... (openRowModal, renderLoading, renderError, handleDelete, handleEdit, handleCopyToWhatsApp, getFormattedValueForText se mantienen igual)
   openRowModal(fieldId, rowIndex) {
     const field = this.template.fields.find((f) => f.id === fieldId);
     if (!field) return;
-
-    // IMPORTANTE: Debemos obtener la fila correcta incluso si la tabla está filtrada/ordenada
-    // Pero el índice que viene del botón ya corresponde a la lista procesada visualmente?
-    // NO, el índice 'rowIndex' en el HTML generado viene del map sobre 'rows' procesadas.
-    // Así que necesitamos acceder a la lista procesada, no a la original 'decryptedData'.
-
     const rowsOriginal = this.decryptedData[fieldId] || [];
     const rowsProcessed = this.getProcessedRows(field, rowsOriginal);
     const rowData = rowsProcessed[rowIndex];

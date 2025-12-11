@@ -1,243 +1,217 @@
 // src/services/documents/index.js
-import { firebaseService } from "../firebase-cdn.js";
-import { encryptionService } from "../encryption/index.js";
 import { authService } from "../auth.js";
-import { VaultDocument } from "../../models/firestore-models.js";
+import { encryptionService } from "../encryption/index.js";
 
 class DocumentService {
   constructor() {
-    this.collectionPath = "vault"; // Subcolección dentro del usuario
+    this.db = null;
+    this.collectionName = "documents";
+
+    // Esperar carga de Firebase
+    setTimeout(() => {
+      if (window.firebaseModules) {
+        this.db = window.firebaseModules.db;
+      }
+    }, 500);
   }
 
-  /**
-   * Crear y guardar un nuevo documento cifrado
-   */
-  async createDocument(template, formData) {
+  getCollection() {
+    if (!this.db || !window.firebaseModules)
+      throw new Error("Firebase no inicializado");
     const user = authService.getCurrentUser();
     if (!user) throw new Error("Usuario no autenticado");
 
+    const { collection } = window.firebaseModules;
+    // Estructura: users/{uid}/documents
+    return collection(this.db, `users/${user.uid}/${this.collectionName}`);
+  }
+
+  // --- CREAR ---
+  async createDocument(template, formData) {
     console.log("🔒 Iniciando proceso de guardado seguro...");
 
-    const payload = {
-      ...formData,
-      _templateVersion: template.updatedAt,
+    // 1. Extraer metadatos (visibles en lista)
+    const titleField =
+      template.fields.find((f) => f.type === "string") || template.fields[0];
+    let title = formData[titleField.id];
+    // Si el título es un objeto (ej: url), sacar texto
+    if (typeof title === "object" && title !== null)
+      title = title.text || title.url || "Sin Título";
+
+    const metadata = {
+      title: title || "Nuevo Documento",
+      templateName: template.name,
+      icon: template.icon,
+      color: template.color,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
     };
 
-    // Crear: Solo pasamos el payload. El ID se genera internamente.
-    const encryptedData = await encryptionService.encryptDocument(payload);
+    // 2. Cifrar SOLO los datos del formulario
+    // encryptedObject será: { iv: "hex...", content: "hex..." }
+    const encryptedObject = await encryptionService.encryptDocument(formData);
 
-    const docModel = new VaultDocument({
-      userId: user.uid,
+    // 3. Preparar objeto final para Firestore
+    const { doc, setDoc, collection } = window.firebaseModules;
+    const docRef = doc(this.getCollection()); // ID automático
+
+    const documentPayload = {
+      id: docRef.id,
       templateId: template.id,
-      encryptedContent: encryptedData.content,
-      encryptionMetadata: encryptedData.metadata,
-      metadata: {
-        title: this.generateDocumentTitle(template, formData),
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        icon: template.icon || "📄",
-        isFavorite: false,
-      },
-    });
+      encryptedContent: encryptedObject, // Guardamos el objeto tal cual
+      encryptionMetadata: { version: 1, algo: "AES-GCM" }, // Info útil para el futuro
+      metadata: metadata,
+    };
 
-    const docRef = firebaseService.doc(
-      `artifacts/mi-gestion-v1/users/${user.uid}/vault/${docModel.id}`
-    );
-
-    await firebaseService.setDoc(docRef, docModel.toFirestore());
-
+    // 4. Guardar
+    await setDoc(docRef, documentPayload);
     console.log("✅ Documento guardado y cifrado exitosamente");
-    return docModel;
+    return documentPayload;
   }
 
-  /**
-   * Obtener todos los documentos del vault del usuario
-   */
+  // --- LEER (LISTA) ---
   async getAllDocuments() {
-    const user = authService.getCurrentUser();
-    if (!user) throw new Error("Usuario no autenticado");
-
-    console.log("📂 Cargando lista de documentos del vault...");
-
-    const vaultPath = `artifacts/mi-gestion-v1/users/${user.uid}/vault`;
-    const db = firebaseService.getFirestore();
-    const { collection, getDocs, query, orderBy } = window.firebaseModules;
-
     try {
+      const { getDocs, query, orderBy } = window.firebaseModules;
       const q = query(
-        collection(db, vaultPath),
+        this.getCollection(),
         orderBy("metadata.updatedAt", "desc")
       );
-
-      const querySnapshot = await getDocs(q);
-
-      const documents = [];
-      querySnapshot.forEach((doc) => {
-        documents.push(doc.data());
-      });
-
-      console.log(`✅ ${documents.length} documentos encontrados`);
-      return documents;
+      const snapshot = await getDocs(q);
+      return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
     } catch (error) {
-      console.error("❌ Error al obtener documentos:", error);
+      console.error("Error al listar documentos:", error);
       return [];
     }
   }
 
-  /**
-   * Obtener un documento específico por ID
-   */
-  async getDocumentById(docId) {
-    const user = authService.getCurrentUser();
-    if (!user) throw new Error("Usuario no autenticado");
+  // --- LEER (DETALLE) ---
+  async getDocumentById(id) {
+    const { doc, getDoc } = window.firebaseModules;
+    const docRef = doc(this.getCollection(), id);
+    const snapshot = await getDoc(docRef);
 
-    try {
-      const docRef = firebaseService.doc(
-        `artifacts/mi-gestion-v1/users/${user.uid}/vault/${docId}`
-      );
-      const docSnap = await firebaseService.getDoc(docRef);
-
-      if (docSnap.exists()) {
-        return docSnap.data();
-      } else {
-        throw new Error("Documento no encontrado");
-      }
-    } catch (error) {
-      console.error("Error al obtener documento:", error);
-      throw error;
-    }
+    if (!snapshot.exists()) throw new Error("Documento no encontrado");
+    return { id: snapshot.id, ...snapshot.data() };
   }
 
-  /**
-   * Carga un documento cifrado para edición (Descifra y prepara)
-   */
-  async loadDocumentForEditing(docId) {
-    const user = authService.getCurrentUser();
-    if (!user) throw new Error("Usuario no autenticado");
-
-    const { templateService } = await import("../templates/index.js");
-
-    const encryptedDocument = await this.getDocumentById(docId);
-
-    if (
-      !encryptedDocument.encryptionMetadata ||
-      !encryptedDocument.encryptedContent
-    ) {
-      throw new Error("Datos cifrados incompletos o corruptos.");
-    }
-
-    const decryptedData = await encryptionService.decryptDocument({
-      content: encryptedDocument.encryptedContent,
-      metadata: encryptedDocument.encryptionMetadata,
-    });
-
-    const template = await templateService.getTemplateById(
-      encryptedDocument.templateId
-    );
-    if (!template) {
-      throw new Error("Plantilla asociada no encontrada.");
-    }
-
-    return {
-      template,
-      formData: decryptedData,
-      documentId: docId,
-      metadata: encryptedDocument.metadata,
-    };
-  }
-
-  /**
-   * Actualizar un documento existente (CRUD - Update)
-   */
+  // --- ACTUALIZAR ---
   async updateDocument(docId, template, formData) {
-    const user = authService.getCurrentUser();
-    if (!user) throw new Error("Usuario no autenticado");
+    console.log("🔄 Actualizando documento cifrado...");
 
-    console.log(
-      `🔒 Iniciando proceso de actualización segura para ${docId}...`
-    );
+    // 1. Recifrar datos
+    const encryptedObject = await encryptionService.encryptDocument(formData);
 
-    const payload = {
-      ...formData,
-      _templateVersion: template.updatedAt,
+    // 2. Actualizar metadatos
+    const titleField =
+      template.fields.find((f) => f.type === "string") || template.fields[0];
+    let title = formData[titleField.id];
+    if (typeof title === "object") title = title.text || title.url;
+
+    const { doc, setDoc } = window.firebaseModules;
+    const docRef = doc(this.getCollection(), docId);
+
+    // 3. Merge update
+    const updatePayload = {
+      encryptedContent: encryptedObject,
+      "metadata.title": title || "Sin Título",
+      "metadata.updatedAt": new Date().toISOString(),
+      "metadata.icon": template.icon, // Por si cambió la plantilla
     };
 
-    // 👇👇👇 CORRECCIÓN CRÍTICA AQUÍ 👇👇👇
-    // Eliminamos 'encryptionService.masterKey'. Solo pasamos (data, docId).
-    // encryptionService usará su masterKey interna automáticamente.
-    const encryptedData = await encryptionService.encryptDocument(
-      payload,
-      docId // Pasamos el ID para mantener la consistencia del cifrado (AAD)
+    // Usamos setDoc con merge: true para no borrar campos que no tocamos
+    await setDoc(docRef, updatePayload, { merge: true });
+    console.log("✅ Documento actualizado");
+
+    // Retornamos estructura completa para que la UI se actualice
+    return { id: docId, ...updatePayload };
+  }
+
+  // --- ELIMINAR ---
+  async deleteDocument(id) {
+    const { doc, deleteDoc } = window.firebaseModules;
+    await deleteDoc(doc(this.getCollection(), id));
+    console.log(`🗑️ Documento ${id} eliminado exitosamente`);
+  }
+
+  // --- CARGAR PARA EDICIÓN ---
+  async loadDocumentForEditing(docId) {
+    // Esta función orquesta la carga: Documento + Plantilla + Desencriptado
+    const doc = await this.getDocumentById(docId);
+
+    // Importamos templateService dinámicamente para evitar ciclos de dependencia si los hubiera
+    const { templateService } = await import("../templates/index.js");
+    const template = await templateService.getTemplateById(doc.templateId);
+
+    if (!template) throw new Error("La plantilla de este documento no existe");
+
+    // Desencriptar
+    const formData = await encryptionService.decryptDocument(
+      doc.encryptedContent
     );
 
-    // Ajuste para objeto plano en setDoc con merge
-    const finalUpdate = {
-      encryptedContent: encryptedData.content,
-      encryptionMetadata: encryptedData.metadata,
-      metadata: {
-        ...template.metadata,
-        title: this.generateDocumentTitle(template, formData),
-        updatedAt: new Date().toISOString(),
-        icon: template.icon || "📄",
-        isFavorite: false,
-      },
-    };
-
-    const docRef = firebaseService.doc(
-      `artifacts/mi-gestion-v1/users/${user.uid}/vault/${docId}`
-    );
-
-    await firebaseService.setDoc(docRef, finalUpdate, { merge: true });
-
-    console.log("✅ Documento actualizado y recifrado exitosamente");
-    return { id: docId, ...finalUpdate };
+    return { document: doc, template, formData, metadata: doc.metadata };
   }
 
   /**
-   * Eliminar un documento por su ID
+   * RE-CIFRADO MASIVO (Cambio de Llave Maestra)
+   * 1. Descarga todos los docs.
+   * 2. Descifra con la llave actual.
+   * 3. Cifra con la llave nueva.
+   * 4. Guarda todo en un Batch atómico.
    */
-  async deleteDocument(docId) {
-    const user = authService.getCurrentUser();
-    if (!user) throw new Error("Usuario no autenticado");
+  async reEncryptAllDocuments(newPassword) {
+    console.log("🔄 Iniciando proceso de Re-Cifrado Masivo...");
 
-    try {
-      const docRef = firebaseService.doc(
-        `artifacts/mi-gestion-v1/users/${user.uid}/vault/${docId}`
-      );
+    // 1. Obtener nueva llave derivada (temporal)
+    const newMasterKey = await encryptionService.deriveTemporaryKey(
+      newPassword
+    );
 
-      await firebaseService.deleteDoc(docRef);
+    // 2. Obtener todos los documentos cifrados actuales
+    const allDocs = await this.getAllDocuments();
+    console.log(`📄 Procesando ${allDocs.length} documentos...`);
 
-      console.log(`🗑️ Documento ${docId} eliminado exitosamente`);
-      return { success: true };
-    } catch (error) {
-      console.error("❌ Error al eliminar documento:", error);
-      throw new Error("No se pudo eliminar el documento de la bóveda.");
-    }
-  }
+    // 3. Preparar Batch de Firestore (Límite 500 ops, para V1 asumimos <500)
+    const { writeBatch, doc } = window.firebaseModules;
+    const batch = writeBatch(this.db);
 
-  /**
-   * Generar título automático basado en el primer campo
-   */
-  generateDocumentTitle(template, formData) {
-    const firstField = template.fields[0];
+    // 4. Bucle de conversión
+    for (const docData of allDocs) {
+      try {
+        // A. Descifrar con llave ACTUAL (La que está en memoria)
+        const plainData = await encryptionService.decryptDocument(
+          docData.encryptedContent
+        );
 
-    if (
-      firstField &&
-      formData[firstField.id] !== undefined &&
-      formData[firstField.id] !== null
-    ) {
-      const firstValue = formData[firstField.id];
-      let title = String(firstValue);
+        // B. Cifrar con llave NUEVA
+        const newEncryptedContent = await encryptionService.encryptDocument(
+          plainData,
+          newMasterKey
+        );
 
-      if (title.length > 0 || firstValue === 0 || firstValue === false) {
-        if (title.length > 50) {
-          title = title.substring(0, 50) + "...";
-        }
-        return title;
+        // C. Agregar al batch
+        const docRef = doc(this.getCollection(), docData.id);
+        batch.update(docRef, {
+          encryptedContent: newEncryptedContent,
+          "encryptionMetadata.updatedAt": new Date().toISOString(),
+        });
+      } catch (err) {
+        console.error(`❌ Falló re-cifrado del doc ${docData.id}`, err);
+        throw new Error(
+          `Error de integridad en documento ${docData.metadata.title}. Proceso abortado.`
+        );
       }
     }
 
-    return `${template.name} - ${new Date().toLocaleDateString()}`;
+    // 5. Commit atómico (Todo o nada)
+    await batch.commit();
+
+    // 6. Actualizar la llave en memoria para seguir trabajando sin salir
+    encryptionService.setNewMasterKey(newMasterKey);
+
+    console.log("✅ Re-cifrado completado con éxito.");
+    return true;
   }
 }
 

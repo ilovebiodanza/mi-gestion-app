@@ -86,6 +86,7 @@
         query,
         orderBy,
         deleteDoc,
+        writeBatch, // <--- ¡AQUÍ ESTABA EL FALTANTE!
       } from "https://www.gstatic.com/firebasejs/10.3.0/firebase-firestore.js";
 
       const firebaseConfig = {
@@ -106,6 +107,7 @@
         app,
         auth,
         db,
+        // Auth
         createUserWithEmailAndPassword,
         signInWithEmailAndPassword,
         signOut,
@@ -114,6 +116,7 @@
         onAuthStateChanged,
         reauthenticateWithCredential,
         EmailAuthProvider,
+        // Firestore
         getFirestore,
         doc,
         setDoc,
@@ -123,7 +126,10 @@
         query,
         orderBy,
         deleteDoc,
+        writeBatch, // <--- ¡Y AQUÍ TAMBIÉN!
       };
+
+      console.log("✅ Firebase inicializado con soporte de Batch");
     </script>
   </head>
   <body
