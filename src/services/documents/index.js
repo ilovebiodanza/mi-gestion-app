@@ -1,3 +1,5 @@
+// src/services/documents/index.js
+
 import { authService } from "../auth.js";
 import { encryptionService } from "../encryption/index.js";
 
@@ -19,43 +21,42 @@ class DocumentService {
     return collection(this.db, `users/${user.uid}/${this.collectionName}`);
   }
 
-  async listDocuments() {
-    const docs = await this.getAllDocuments();
-    return docs.map((doc) => ({
-      id: doc.id,
-      templateId: doc.templateId,
-      title: doc.metadata?.title || "Sin Título",
-      updatedAt: doc.metadata?.updatedAt || new Date().toISOString(),
-      createdAt: doc.metadata?.createdAt || new Date().toISOString(),
-      // Pasamos metadatos visuales importantes para la lista
-      icon: doc.metadata?.icon,
-      color: doc.metadata?.color,
-      templateName: doc.metadata?.templateName,
-      ...doc,
-    }));
+  // --- MÉTODOS PRINCIPALES (Refactorizados) ---
+
+  /**
+   * Obtiene un documento por ID
+   */
+  async getById(id) {
+    const { doc, getDoc } = window.firebaseModules;
+    const snapshot = await getDoc(doc(this.getCollection(), id));
+    if (!snapshot.exists()) throw new Error("No encontrado");
+    return { id: snapshot.id, ...snapshot.data() };
   }
 
-  // --- CREAR (Modificado: recibe explicitTitle) ---
-  async createDocument(template, formData, explicitTitle) {
-    console.log("🔒 Guardando nuevo documento...");
-
-    // Usamos el título explícito del header
-    const title = explicitTitle || "Nuevo Documento";
+  /**
+   * Crea un documento nuevo
+   * @param {Object} payload - { title, data, template, tags }
+   */
+  async create(payload) {
+    console.log("🔒 Creando documento...");
+    const { title, data, template, tags } = payload;
 
     const metadata = {
-      title: title,
+      title: title || "Sin Título",
       templateName: template.name,
       icon: template.icon,
       color: template.color,
+      tags: tags || [],
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
 
-    const encryptedObject = await encryptionService.encryptDocument(formData);
+    const encryptedObject = await encryptionService.encryptDocument(data);
+
     const { doc, setDoc } = window.firebaseModules;
     const docRef = doc(this.getCollection());
 
-    const documentPayload = {
+    const documentData = {
       id: docRef.id,
       templateId: template.id,
       encryptedContent: encryptedObject,
@@ -63,11 +64,65 @@ class DocumentService {
       metadata: metadata,
     };
 
-    await setDoc(docRef, documentPayload);
-    return documentPayload;
+    await setDoc(docRef, documentData);
+    return documentData;
   }
 
-  // --- LEER (LISTA ORIGINAL) ---
+  /**
+   * Actualiza un documento existente
+   * @param {string} docId
+   * @param {Object} payload - { title, data, template, tags }
+   */
+  async update(docId, payload) {
+    console.log("🔄 Actualizando documento...");
+    const { title, data, template, tags } = payload;
+
+    const encryptedObject = await encryptionService.encryptDocument(data);
+
+    const { doc, setDoc } = window.firebaseModules;
+    const docRef = doc(this.getCollection(), docId);
+
+    const updatePayload = {
+      encryptedContent: encryptedObject,
+      "metadata.title": title,
+      "metadata.tags": tags || [],
+      "metadata.updatedAt": new Date().toISOString(),
+      // Actualizamos visuales por si cambiaron en el template
+      "metadata.icon": template.icon,
+      "metadata.color": template.color,
+      "metadata.templateName": template.name,
+    };
+
+    await setDoc(docRef, updatePayload, { merge: true });
+    return { id: docId, ...updatePayload };
+  }
+
+  /**
+   * Elimina un documento
+   */
+  async delete(id) {
+    const { doc, deleteDoc } = window.firebaseModules;
+    await deleteDoc(doc(this.getCollection(), id));
+  }
+
+  // --- MÉTODOS DE SOPORTE ---
+
+  async listDocuments() {
+    const docs = await this.getAllDocuments(); // Mantenemos getAllDocuments interno o lo renombramos a listAll? Dejémoslo interno por ahora.
+    return docs.map((doc) => ({
+      id: doc.id,
+      templateId: doc.templateId,
+      title: doc.metadata?.title || "Sin Título",
+      updatedAt: doc.metadata?.updatedAt || new Date().toISOString(),
+      createdAt: doc.metadata?.createdAt || new Date().toISOString(),
+      icon: doc.metadata?.icon,
+      color: doc.metadata?.color,
+      templateName: doc.metadata?.templateName,
+      tags: doc.metadata?.tags || [],
+      ...doc,
+    }));
+  }
+
   async getAllDocuments() {
     try {
       if (!window.firebaseModules) return [];
@@ -84,58 +139,32 @@ class DocumentService {
     }
   }
 
-  // --- LEER (DETALLE) ---
-  async getDocumentById(id) {
-    const { doc, getDoc } = window.firebaseModules;
-    const snapshot = await getDoc(doc(this.getCollection(), id));
-    if (!snapshot.exists()) throw new Error("No encontrado");
-    return { id: snapshot.id, ...snapshot.data() };
-  }
-
-  // --- ACTUALIZAR (Modificado: recibe explicitTitle) ---
-  async updateDocument(docId, template, formData, explicitTitle) {
-    console.log("🔄 Actualizando documento...");
-    const encryptedObject = await encryptionService.encryptDocument(formData);
-
-    const title = explicitTitle || "Documento Actualizado";
-
-    const { doc, setDoc } = window.firebaseModules;
-    const docRef = doc(this.getCollection(), docId);
-
-    const updatePayload = {
-      encryptedContent: encryptedObject,
-      "metadata.title": title, // <--- Actualizamos título explícito
-      "metadata.updatedAt": new Date().toISOString(),
-      "metadata.icon": template.icon,
-      "metadata.color": template.color,
-      "metadata.templateName": template.name,
-    };
-
-    await setDoc(docRef, updatePayload, { merge: true });
-    return { id: docId, ...updatePayload };
-  }
-
-  // --- ELIMINAR ---
-  async deleteDocument(id) {
-    const { doc, deleteDoc } = window.firebaseModules;
-    await deleteDoc(doc(this.getCollection(), id));
-  }
-
-  // --- CARGAR PARA EDICIÓN ---
+  /**
+   * Carga documento completo para el editor
+   */
   async loadDocumentForEditing(docId) {
-    const doc = await this.getDocumentById(docId);
+    // Usamos el nuevo método getById
+    const doc = await this.getById(docId);
+
     const { templateService } = await import("../templates/index.js");
-    const template = await templateService.getTemplateById(doc.templateId);
+
+    let template = doc.template;
+    if (!template) {
+      template = await templateService.getTemplateById(doc.templateId);
+    }
+
     if (!template) throw new Error("Plantilla no existe");
+
     const formData = await encryptionService.decryptDocument(
       doc.encryptedContent
     );
     return { document: doc, template, formData, metadata: doc.metadata };
   }
 
-  // --- RE-CIFRADO MASIVO ---
+  /**
+   * Re-cifrado (Mantenimiento)
+   */
   async reEncryptAllDocuments(newPassword) {
-    // ... (Lógica de re-cifrado se mantiene igual)
     const newMasterKey = await encryptionService.deriveTemporaryKey(
       newPassword
     );
@@ -166,12 +195,8 @@ class DocumentService {
     return true;
   }
 
-  /**
-   * Busca documentos asociados a una plantilla específica.
-   */
   async getDocumentsByTemplateId(templateId) {
     if (!window.firebaseModules) return [];
-    // Ahora 'where' ya existirá gracias al cambio en index.html
     const { getDocs, query, where } = window.firebaseModules;
 
     try {
@@ -188,31 +213,22 @@ class DocumentService {
     }
   }
 
-  /**
-   * Borra masivamente todos los documentos de una plantilla (Batch Delete).
-   */
   async deleteDocumentsByTemplateId(templateId) {
     console.log(
       `🗑️ Eliminando documentos en cascada para plantilla: ${templateId}`
     );
 
-    // 1. Obtenemos los documentos a borrar
     const docsToDelete = await this.getDocumentsByTemplateId(templateId);
-
-    // Si no hay documentos, retornamos 0 (éxito sin acción)
     if (docsToDelete.length === 0) return 0;
 
     const { writeBatch, doc } = window.firebaseModules;
     const batch = writeBatch(this.db);
 
-    // 2. Encolamos las operaciones de borrado
     docsToDelete.forEach((d) => {
-      // Importante: Referencia correcta al documento
       const docRef = doc(this.getCollection(), d.id);
       batch.delete(docRef);
     });
 
-    // 3. Ejecutamos todo junto (Atómico)
     await batch.commit();
     console.log(`✅ ${docsToDelete.length} documentos eliminados.`);
     return docsToDelete.length;

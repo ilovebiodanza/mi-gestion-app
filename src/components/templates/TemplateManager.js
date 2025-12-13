@@ -170,7 +170,7 @@ export class TemplateManager {
         if (!confirm(confirmMessage)) return;
 
         // Si confirma, procedemos al borrado en cascada
-        await documentService.deleteDocumentsByTemplateId(id);
+        await documentService.deletesByTemplateId(id);
       } else {
         // ✅ CASO SIMPLE: Plantilla limpia (sin documentos)
         if (!confirm("¿Estás seguro de eliminar esta plantilla?")) return;

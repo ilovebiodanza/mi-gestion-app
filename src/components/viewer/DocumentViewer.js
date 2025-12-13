@@ -35,7 +35,7 @@ export class DocumentViewer {
       return;
     }
     try {
-      this.document = await documentService.getDocumentById(this.docId);
+      this.document = await documentService.getById(this.docId);
       this.template = await templateService.getTemplateById(
         this.document.templateId
       );
@@ -622,7 +622,7 @@ export class DocumentViewer {
     if (!confirm("¿Estás seguro de eliminar este documento permanentemente?"))
       return;
     try {
-      await documentService.deleteDocument(this.docId);
+      await documentService.delete(this.docId);
       this.onBack();
     } catch (error) {
       alert(error.message);
