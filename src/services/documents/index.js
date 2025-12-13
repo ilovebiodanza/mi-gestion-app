@@ -165,6 +165,58 @@ class DocumentService {
     encryptionService.setNewMasterKey(newMasterKey);
     return true;
   }
+
+  /**
+   * Busca documentos asociados a una plantilla específica.
+   */
+  async getDocumentsByTemplateId(templateId) {
+    if (!window.firebaseModules) return [];
+    // Ahora 'where' ya existirá gracias al cambio en index.html
+    const { getDocs, query, where } = window.firebaseModules;
+
+    try {
+      const q = query(
+        this.getCollection(),
+        where("templateId", "==", templateId)
+      );
+
+      const snapshot = await getDocs(q);
+      return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+    } catch (error) {
+      console.error("Error buscando documentos asociados:", error);
+      return [];
+    }
+  }
+
+  /**
+   * Borra masivamente todos los documentos de una plantilla (Batch Delete).
+   */
+  async deleteDocumentsByTemplateId(templateId) {
+    console.log(
+      `🗑️ Eliminando documentos en cascada para plantilla: ${templateId}`
+    );
+
+    // 1. Obtenemos los documentos a borrar
+    const docsToDelete = await this.getDocumentsByTemplateId(templateId);
+
+    // Si no hay documentos, retornamos 0 (éxito sin acción)
+    if (docsToDelete.length === 0) return 0;
+
+    const { writeBatch, doc } = window.firebaseModules;
+    const batch = writeBatch(this.db);
+
+    // 2. Encolamos las operaciones de borrado
+    docsToDelete.forEach((d) => {
+      // Importante: Referencia correcta al documento
+      const docRef = doc(this.getCollection(), d.id);
+      batch.delete(docRef);
+    });
+
+    // 3. Ejecutamos todo junto (Atómico)
+    await batch.commit();
+    console.log(`✅ ${docsToDelete.length} documentos eliminados.`);
+    return docsToDelete.length;
+  }
 }
 
 export const documentService = new DocumentService();

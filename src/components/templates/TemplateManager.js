@@ -1,6 +1,8 @@
 // src/components/TemplateManager.js
 
 import { templateService } from "../../services/templates/index.js";
+// 👇 IMPORTANTE: Añadir esta importación
+import { documentService } from "../../services/documents/index.js";
 import { TemplateList } from "./TemplateList.js";
 import { TemplateForm } from "./TemplateForm.js";
 
@@ -150,13 +152,38 @@ export class TemplateManager {
   }
 
   async handleDelete(id) {
-    if (confirm("¿Estás seguro de eliminar esta plantilla?")) {
-      try {
-        await templateService.deleteTemplate(id);
-        this.loadTemplates();
-      } catch (e) {
-        alert("Error: " + e.message);
+    try {
+      // 1. Verificación previa: ¿Hay documentos afectados?
+      const associatedDocs = await documentService.getDocumentsByTemplateId(id);
+      const count = associatedDocs.length;
+
+      if (count > 0) {
+        // 🚨 CASO CRÍTICO: Hay documentos dependientes
+        const confirmMessage =
+          `⚠️ ¡ADVERTENCIA DE SEGURIDAD!\n\n` +
+          `Esta plantilla tiene ${count} documento(s) asociado(s).\n\n` +
+          `Si continúas, TODOS los documentos creados con esta plantilla serán ELIMINADOS PERMANENTEMENTE para mantener la integridad del sistema.\n\n` +
+          `Esta acción NO se puede deshacer.\n\n` +
+          `¿Estás absolutamente seguro de borrar la plantilla y sus documentos?`;
+
+        // Si el usuario cancela, salimos
+        if (!confirm(confirmMessage)) return;
+
+        // Si confirma, procedemos al borrado en cascada
+        await documentService.deleteDocumentsByTemplateId(id);
+      } else {
+        // ✅ CASO SIMPLE: Plantilla limpia (sin documentos)
+        if (!confirm("¿Estás seguro de eliminar esta plantilla?")) return;
       }
+
+      // 2. Finalmente borramos la plantilla
+      await templateService.deleteTemplate(id);
+
+      // 3. Refrescamos la lista
+      this.loadTemplates();
+    } catch (e) {
+      console.error(e);
+      alert("Error durante la eliminación: " + e.message);
     }
   }
 
