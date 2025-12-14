@@ -1,84 +1,71 @@
 // src/components/templates/TemplateForm.js
-import { generateFieldId, getCategoryIcon } from "../../utils/helpers.js";
-import {
-  renderMainLayout,
-  renderFieldItemConfig,
-} from "./TemplateFormRenderers.js";
+import { getCategoryIcon, generateFieldId } from "../../utils/helpers.js";
+import { renderMainLayout } from "./TemplateFormRenderers.js";
+import { fieldConfigRegistry } from "./config/FieldConfigRegistry.js";
 
 export class TemplateForm {
   constructor(handlers) {
     this.handlers = handlers; // { onSave, onCancel }
-    this.activeFieldItem = null;
-    this.mainSortable = null;
-    this.modalSortable = null;
+    this.fieldControllers = []; // Array de instancias de AbstractFieldConfig
+    this.sortable = null;
   }
 
+  /**
+   * Renderiza el formulario completo.
+   */
   render(template = null) {
-    // 1. PRIMERO generamos el HTML de los campos (si existen)
-    const fieldsHtml = (template?.fields || [])
-      .map((f, i) => renderFieldItemConfig(f, i))
-      .join("");
+    // 1. Limpiamos controladores previos
+    this.fieldControllers = [];
 
-    // 2. LUEGO llamamos al layout pasando los campos ya generados
-    // Esto asegura que se coloquen dentro del <div id="fieldsContainer">
+    // 2. Generamos controladores para los campos existentes
+    const fieldsData = template?.fields || [];
+
+    fieldsData.forEach((fieldData, index) => {
+      const controller = this.createController(fieldData, index);
+      this.fieldControllers.push(controller);
+    });
+
+    // 3. Generamos el HTML inicial de todos los campos
+    const fieldsHtml = this.fieldControllers.map((c) => c.render()).join("");
+
+    // 4. Renderizamos el Layout Principal
     return renderMainLayout(!!template, template, fieldsHtml);
   }
 
+  /**
+   * Inicializa listeners y componentes después de insertar el HTML en el DOM.
+   */
   setupListeners(container) {
-    // Listeners Generales
+    // 1. Listeners del Layout Principal (Nombre, Categoría, Icono)
+    this.setupMainListeners(container);
+
+    // 2. Inicializar cada controlador de campo (attachListeners individuales)
+    const fieldsContainer = container.querySelector("#fieldsContainer");
+    if (fieldsContainer) {
+      this.fieldControllers.forEach((ctrl) => ctrl.postRender(fieldsContainer));
+    }
+
+    // 3. Inicializar Drag & Drop
+    this.initSortable(fieldsContainer);
+    this.updateNoFieldsMessage(container);
+  }
+
+  setupMainListeners(container) {
+    // Cambio automático de icono según categoría
     const catSelect = container.querySelector("#templateCategory");
     const iconInput = container.querySelector("#templateIcon");
     if (catSelect && iconInput) {
-      catSelect.addEventListener(
-        "change",
-        (e) => (iconInput.value = getCategoryIcon(e.target.value))
-      );
-    }
-
-    container
-      .querySelector("#addFieldBtn")
-      ?.addEventListener("click", () => this.addField(container));
-
-    // Inicializar Drag & Drop principal
-    this.initSortable(container.querySelector("#fieldsContainer"), "main");
-    this.updateNoFieldsMessage(container);
-
-    const fieldsContainer = container.querySelector("#fieldsContainer");
-    if (fieldsContainer) {
-      // Delegación de eventos para eliminar/configurar campos
-      fieldsContainer.addEventListener("click", (e) => {
-        if (e.target.closest(".remove-field")) {
-          e.target.closest(".field-item").remove();
-          this.updateNoFieldsMessage(container);
-        }
-        if (e.target.closest(".configure-table-btn")) {
-          this.openColumnsModal(e.target.closest(".field-item"));
-        }
-      });
-
-      // Cambio de tipo de campo
-      fieldsContainer.addEventListener("change", (e) => {
-        if (e.target.classList.contains("field-type")) {
-          const item = e.target.closest(".field-item");
-          const currentLabel = item.querySelector(".field-label").value;
-          const currentId = item.dataset.fieldId;
-          const newType = e.target.value;
-
-          const tempField = {
-            id: currentId,
-            label: currentLabel,
-            type: newType,
-            options: [],
-            columns: [],
-            required: false,
-          };
-
-          item.outerHTML = renderFieldItemConfig(tempField);
-        }
+      catSelect.addEventListener("change", (e) => {
+        iconInput.value = getCategoryIcon(e.target.value);
       });
     }
 
-    // Botón Guardar (Formulario Principal)
+    // Botón Agregar Campo
+    container.querySelector("#addFieldBtn")?.addEventListener("click", () => {
+      this.addField(container);
+    });
+
+    // Botones Guardar y Cancelar
     const form = container.querySelector("#templateForm");
     if (form) {
       form.addEventListener("submit", (e) => {
@@ -87,7 +74,6 @@ export class TemplateForm {
       });
     }
 
-    // Botón Guardar (Header)
     container
       .querySelector("#saveTemplateBtnHeader")
       ?.addEventListener("click", () => {
@@ -96,42 +82,147 @@ export class TemplateForm {
 
     container
       .querySelector("#cancelTemplate")
-      ?.addEventListener("click", () => this.handlers.onCancel());
-
-    this.setupModalListeners();
+      ?.addEventListener("click", () => {
+        this.handlers.onCancel();
+      });
   }
 
-  initSortable(element, type) {
-    if (!element || !window.Sortable) return;
-    // Limpieza de instancias previas para evitar conflictos
-    if (type === "main" && this.mainSortable) {
-      this.mainSortable.destroy();
-      this.mainSortable = null;
-    }
-    if (type === "modal" && this.modalSortable) {
-      this.modalSortable.destroy();
-      this.modalSortable = null;
-    }
-
-    const config = {
-      animation: 200,
-      handle: ".drag-handle",
-      ghostClass: "sortable-ghost",
-      dragClass: "sortable-drag",
-      forceFallback: true, // Importante para evitar bugs visuales en algunos navegadores
+  /**
+   * Crea una nueva instancia de controlador y configura sus callbacks.
+   */
+  createController(fieldData, index) {
+    // Definimos los callbacks que le pasamos al hijo para que se comunique con nosotros
+    const callbacks = {
+      onRemove: (ctrl) => this.removeField(ctrl),
+      onTypeChange: (ctrl, newType) => this.handleTypeChange(ctrl, newType),
+      onChange: () => {
+        /* Podríamos implementar auto-guardado aquí */
+      },
     };
 
-    const sortable = new window.Sortable(element, config);
-
-    if (type === "main") this.mainSortable = sortable;
-    else this.modalSortable = sortable;
+    return fieldConfigRegistry.createController(fieldData, index, callbacks);
   }
 
+  /**
+   * Agrega un nuevo campo al final de la lista.
+   */
   addField(container) {
-    const fc = container.querySelector("#fieldsContainer");
-    const count = fc.querySelectorAll(".field-item").length;
-    fc.insertAdjacentHTML("beforeend", renderFieldItemConfig(null, count));
+    const fieldsContainer = container.querySelector("#fieldsContainer");
+    if (!fieldsContainer) return;
+
+    const index = this.fieldControllers.length;
+    const newFieldData = {
+      id: generateFieldId(`campo_${index + 1}`, index),
+      label: "",
+      type: "string", // Por defecto
+      required: false,
+    };
+
+    // 1. Crear Controlador
+    const controller = this.createController(newFieldData, index);
+    this.fieldControllers.push(controller);
+
+    // 2. Insertar HTML en el DOM
+    const wrapper = document.createElement("div");
+    wrapper.innerHTML = controller.render();
+    const newElement = wrapper.firstElementChild;
+    fieldsContainer.appendChild(newElement);
+
+    // 3. Activar Listeners del nuevo campo
+    controller.postRender(fieldsContainer);
+
+    // 4. Scroll al nuevo campo
+    newElement.scrollIntoView({ behavior: "smooth", block: "center" });
     this.updateNoFieldsMessage(container);
+  }
+
+  /**
+   * Elimina un campo de la lista y del DOM.
+   */
+  removeField(controller) {
+    // 1. Remover del DOM
+    if (controller.domElement) {
+      controller.domElement.remove();
+    }
+
+    // 2. Remover del array
+    this.fieldControllers = this.fieldControllers.filter(
+      (c) => c !== controller
+    );
+
+    // 3. Actualizar UI vacía si es necesario
+    this.updateNoFieldsMessage(document);
+  }
+
+  /**
+   * Maneja el cambio de tipo de un campo (ej: de Texto a Tabla).
+   * Requiere recrear el controlador porque la clase cambia.
+   */
+  handleTypeChange(oldController, newType) {
+    const fieldsContainer = document.getElementById("fieldsContainer");
+    if (!fieldsContainer) return;
+
+    // 1. Obtener datos actuales y actualizar tipo
+    const currentData = oldController.getDefinition();
+    currentData.type = newType;
+
+    // Limpiar propiedades específicas si cambiamos de tipo drásticamente (opcional)
+    if (newType !== "select") delete currentData.options;
+    if (newType !== "table") delete currentData.columns;
+
+    // 2. Crear nuevo controlador
+    const newController = this.createController(
+      currentData,
+      oldController.index
+    );
+
+    // 3. Reemplazar en el DOM
+    const tempWrapper = document.createElement("div");
+    tempWrapper.innerHTML = newController.render();
+    const newElement = tempWrapper.firstElementChild;
+
+    oldController.domElement.replaceWith(newElement);
+
+    // 4. Activar listeners del nuevo controlador
+    newController.postRender(fieldsContainer);
+
+    // 5. Reemplazar en el array (manteniendo la posición)
+    const index = this.fieldControllers.indexOf(oldController);
+    if (index !== -1) {
+      this.fieldControllers[index] = newController;
+    }
+  }
+
+  initSortable(element) {
+    if (!element || !window.Sortable) return;
+
+    if (this.sortable) this.sortable.destroy();
+
+    this.sortable = new window.Sortable(element, {
+      animation: 200,
+      handle: ".drag-handle",
+      ghostClass: "opacity-50",
+      onEnd: (evt) => {
+        // Reordenar el array de controladores según el DOM
+        // Nota: Esto asume que el orden del array coincide con el DOM.
+        // Una forma robusta es leer los IDs del DOM y reordenar el array.
+        this.reorderControllers();
+      },
+    });
+  }
+
+  reorderControllers() {
+    const container = document.getElementById("fieldsContainer");
+    if (!container) return;
+
+    const newOrderIds = Array.from(container.children).map(
+      (el) => el.dataset.id
+    );
+
+    // Ordenamos this.fieldControllers basado en newOrderIds
+    this.fieldControllers.sort((a, b) => {
+      return newOrderIds.indexOf(a.data.id) - newOrderIds.indexOf(b.data.id);
+    });
   }
 
   updateNoFieldsMessage(container) {
@@ -140,179 +231,31 @@ export class TemplateForm {
     if (fc && msg) msg.classList.toggle("hidden", fc.children.length > 0);
   }
 
-  // --- LÓGICA DEL MODAL DE COLUMNAS ---
-  setupModalListeners() {
-    const modal = document.getElementById("columnsModal");
-    if (!modal) return;
-
-    const close = () => modal.classList.add("hidden");
-
-    // Listeners de cierre
-    const closeBtnTop = modal.querySelector("#closeModalTop");
-    const cancelBtn = modal.querySelector("#cancelModalBtn");
-    const backdrop = modal.querySelector("#closeModalBackdrop");
-
-    if (closeBtnTop) closeBtnTop.onclick = close;
-    if (cancelBtn) cancelBtn.onclick = close;
-    if (backdrop) backdrop.onclick = close;
-
-    const addFn = () => {
-      const c = modal.querySelector("#modalColumnsContainer");
-      const count = c.querySelectorAll(".field-item").length;
-      c.insertAdjacentHTML("beforeend", renderFieldItemConfig(null, count));
-      const newItem = c.lastElementChild;
-
-      // Limpiar opciones que no aplican a columnas de tabla
-      const select = newItem.querySelector(".field-type");
-      [...select.options].forEach((opt) => {
-        if (opt.value === "table" || opt.value === "separator") opt.remove();
-      });
-      // Ajuste visual para items dentro del modal
-      newItem.classList.remove("p-1");
-      newItem.classList.add("p-0", "border-slate-200");
-
-      const noColsMsg = modal.querySelector("#noColumnsMessage");
-      if (noColsMsg) noColsMsg.classList.add("hidden");
-    };
-
-    const addColBtn = modal.querySelector("#addColBtn");
-    const addColBtnEmpty = modal.querySelector("#addColBtnEmpty");
-    if (addColBtn) addColBtn.onclick = addFn;
-    if (addColBtnEmpty) addColBtnEmpty.onclick = addFn;
-
-    const mc = modal.querySelector("#modalColumnsContainer");
-    if (mc) {
-      mc.onclick = (e) => {
-        if (e.target.closest(".remove-field")) {
-          e.target.closest(".field-item").remove();
-          if (mc.children.length === 0) {
-            const noColsMsg = modal.querySelector("#noColumnsMessage");
-            if (noColsMsg) noColsMsg.classList.remove("hidden");
-          }
-        }
-      };
-
-      mc.onchange = (e) => {
-        if (e.target.classList.contains("field-type")) {
-          const item = e.target.closest(".field-item");
-          const optsGroup = item.querySelector(".options-input-group");
-          if (optsGroup) {
-            optsGroup.classList.toggle("hidden", e.target.value !== "select");
-          }
-        }
-      };
-    }
-
-    const saveBtn = modal.querySelector("#saveModalBtn");
-    if (saveBtn) {
-      saveBtn.onclick = () => {
-        const columns = this.collectFields(mc);
-        const parent = this.activeFieldItem;
-        if (parent) {
-          parent.querySelector(".field-columns-data").value =
-            JSON.stringify(columns);
-          const badge = parent.querySelector(".columns-count-badge");
-          if (badge) badge.textContent = columns.length;
-        }
-        close();
-      };
-    }
-  }
-
-  openColumnsModal(fieldItem) {
-    this.activeFieldItem = fieldItem;
-    const modal = document.getElementById("columnsModal");
-    const container = document.getElementById("modalColumnsContainer");
-    const hiddenInput = fieldItem.querySelector(".field-columns-data");
-
-    let cols = [];
-    try {
-      cols = JSON.parse(hiddenInput.value || "[]");
-    } catch (e) {}
-
-    container.innerHTML = "";
-    cols.forEach((col, i) => {
-      container.insertAdjacentHTML("beforeend", renderFieldItemConfig(col, i));
-      const el = container.lastElementChild;
-      el.classList.remove("p-1");
-      el.classList.add("p-0");
-
-      const select = el.querySelector(".field-type");
-      [...select.options].forEach((opt) => {
-        if (opt.value === "table" || opt.value === "separator") opt.remove();
-      });
-
-      if (col.type === "select") {
-        const optsGroup = el.querySelector(".options-input-group");
-        if (optsGroup) optsGroup.classList.remove("hidden");
-      }
-    });
-
-    this.initSortable(container, "modal");
-
-    const noColsMsg = modal.querySelector("#noColumnsMessage");
-    if (noColsMsg) noColsMsg.classList.toggle("hidden", cols.length > 0);
-
-    modal.classList.remove("hidden");
-  }
-
-  collectFields(container) {
-    const fields = [];
-    container.querySelectorAll(".field-item").forEach((item, index) => {
-      const labelInput = item.querySelector(".field-label");
-      const label = labelInput ? labelInput.value.trim() : "";
-      if (!label) return;
-
-      const typeSelect = item.querySelector(".field-type");
-      const type = typeSelect ? typeSelect.value : "text";
-      const fieldId = item.dataset.fieldId || generateFieldId(label, index);
-
-      let options = [];
-      if (type === "select") {
-        const optsInput = item.querySelector(".field-options");
-        const txt = optsInput ? optsInput.value : "";
-        if (txt)
-          options = txt
-            .split(",")
-            .map((s) => s.trim())
-            .filter((s) => s);
-      }
-
-      let columns = [];
-      if (type === "table") {
-        try {
-          const colsInput = item.querySelector(".field-columns-data");
-          columns = JSON.parse(colsInput ? colsInput.value : "[]");
-        } catch (e) {}
-      }
-
-      const reqCheckbox = item.querySelector(".field-required");
-
-      fields.push({
-        id: fieldId,
-        label,
-        type,
-        order: index + 1,
-        required: reqCheckbox ? reqCheckbox.checked : false,
-        ...(options.length && { options }),
-        ...(columns.length && { columns }),
-      });
-    });
-    return fields;
-  }
-
   saveData() {
     try {
       const nameInput = document.getElementById("templateName");
       const name = nameInput ? nameInput.value.trim() : "";
       if (!name) throw new Error("Por favor, asigna un nombre a la plantilla.");
 
-      const fields = this.collectFields(
-        document.getElementById("fieldsContainer")
-      );
+      // RECOLECCIÓN DE DATOS:
+      // Ya no scrapeamos el DOM. Pedimos los datos limpios a cada controlador.
+      // Además, filtramos campos que puedan estar vacíos o inválidos si queremos.
+      const fields = this.fieldControllers.map((ctrl, idx) => {
+        const def = ctrl.getDefinition();
+        def.order = idx + 1; // Actualizamos el orden final
+        return def;
+      });
 
       if (fields.length === 0)
         throw new Error("Agrega al menos un campo para guardar la plantilla.");
+
+      // Validar etiquetas vacías
+      const emptyLabels = fields.filter(
+        (f) => !f.label.trim() && f.type !== "separator"
+      );
+      if (emptyLabels.length > 0) {
+        throw new Error("Hay campos sin etiqueta. Por favor, nómbralos.");
+      }
 
       const data = {
         name,
@@ -322,6 +265,7 @@ export class TemplateForm {
         description: document.getElementById("templateDescription").value,
         fields,
       };
+
       this.handlers.onSave(data);
     } catch (e) {
       alert(e.message);
