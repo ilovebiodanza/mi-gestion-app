@@ -90,11 +90,45 @@ export class DocumentViewer {
     }
   }
 
+  // --- NUEVO: Lógica de Agrupación (Igual al Editor pero adaptada al Visor) ---
+  groupFields() {
+    const groups = [];
+    let currentGroup = {
+      id: "group-principal",
+      label: "Principal",
+      // Icono más "de lectura"
+      icon: "fas fa-file-alt",
+      fields: [],
+    };
+
+    this.template.fields.forEach((field) => {
+      if (field.type === "separator") {
+        if (currentGroup.fields.length > 0) {
+          groups.push(currentGroup);
+        }
+        currentGroup = {
+          id: `group-${field.id}`,
+          label: field.label,
+          icon: "fas fa-bookmark", // Icono distinto para secciones
+          fields: [],
+          isSeparator: true,
+        };
+      } else {
+        currentGroup.fields.push(field);
+      }
+    });
+
+    if (currentGroup.fields.length > 0) {
+      groups.push(currentGroup);
+    }
+    return groups;
+  }
+
+  // --- REFACTORIZADO: Renderizado con Tabs/Acordeón ---
   renderContent() {
     const container = document.getElementById("documentViewerPlaceholder");
     if (!container) return;
 
-    // Inicializar el Player Base (si no existe)
     globalPlayer.renderBase();
 
     const updatedAt = new Date(
@@ -107,45 +141,126 @@ export class DocumentViewer {
       minute: "2-digit",
     });
 
-    const fieldsHtml = this.template.fields
-      .map((field) => {
-        const isFullWidth = ["separator", "table", "text"].includes(field.type);
-        const spanClass = isFullWidth
-          ? "col-span-1 md:col-span-2 print:col-span-2"
-          : "col-span-1";
+    // 1. Agrupar campos
+    const groups = this.groupFields();
 
-        if (field.type === "separator") {
+    // Color de la plantilla para los Tabs Activos
+    const themeColor = this.template.color || "#6366f1";
+
+    // 2. Generar HTML de los campos (Helper interno para no repetir lógica)
+    const renderFieldsHTML = (fields) => {
+      return fields
+        .map((field) => {
+          const value = this.decryptedData[field.id];
+
+          // Tablas ocupan todo el ancho
+          if (field.type === "table") {
+            return `<div class="col-span-1 md:col-span-2 print:col-span-2 print:break-inside-avoid">
+                          ${this.renderTableField(field, value)}
+                        </div>`;
+          }
+
+          // Campos normales
+          const isFullWidth = ["text", "url"].includes(field.type); // Textos largos y urls a full width
+          const spanClass = isFullWidth
+            ? "col-span-1 md:col-span-2"
+            : "col-span-1";
+          const displayValue = this.renderFieldValue(field.type, value);
+
           return `
-            <div class="${spanClass} mt-6 mb-2 border-b border-slate-200 pb-2 flex items-center gap-3">
-                <div class="w-1.5 h-6 bg-gradient-to-b from-primary to-secondary rounded-full"></div>
-                <h3 class="text-lg font-bold text-slate-800 tracking-tight">${field.label}</h3>
+            <div class="${spanClass} print:col-span-1 print:break-inside-avoid bg-slate-50/50 rounded-xl p-4 border border-slate-100 hover:bg-slate-50 transition-colors group">
+              <dt class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5 flex items-center gap-2">
+                 ${field.label}
+              </dt>
+              <dd class="text-sm text-slate-800 break-words leading-relaxed font-medium">
+                 ${displayValue}
+              </dd>
+            </div>`;
+        })
+        .join("");
+    };
+
+    // 3. Construir el Layout de Pestañas/Acordeón
+    let contentHtml = "";
+
+    if (groups.length === 1) {
+      // Layout Plano (Sin tabs)
+      contentHtml = `<dl class="grid grid-cols-1 md:grid-cols-2 gap-6">${renderFieldsHTML(
+        groups[0].fields
+      )}</dl>`;
+    } else {
+      // Layout Pestañas
+      contentHtml = `
+        <div class="viewer-layout-container">
+            
+            <div class="hidden md:flex items-center gap-2 mb-8 flex-wrap print:hidden">
+                ${groups
+                  .map((group, index) => {
+                    const isActive = index === 0;
+                    // Estilo diferente: Fondo suave en lugar de subrayado
+                    const style = isActive
+                      ? `background-color: ${themeColor}15; color: ${themeColor}; border-color: ${themeColor}30;`
+                      : `background-color: white; color: #64748b; border-color: #e2e8f0;`;
+
+                    return `
+                    <button type="button" 
+                            class="viewer-tab-trigger px-4 py-2 rounded-lg text-sm font-bold border transition-all flex items-center gap-2 hover:shadow-sm"
+                            style="${style}"
+                            data-target="${group.id}">
+                        <i class="${group.icon} opacity-70"></i>
+                        ${group.label}
+                    </button>`;
+                  })
+                  .join("")}
             </div>
-          `;
-        }
 
-        const value = this.decryptedData[field.id];
-        if (field.type === "table")
-          return `<div class="${spanClass}">${this.renderTableField(
-            field,
-            value
-          )}</div>`;
+            <div class="space-y-4 md:space-y-0">
+                ${groups
+                  .map((group, index) => {
+                    const isActive = index === 0;
+                    // Desktop: Oculto si no es activo.
+                    // Print: SIEMPRE VISIBLE (block) para que salga todo el reporte continuo.
+                    const visibilityClass = isActive ? "" : "md:hidden";
 
-        // Aquí llamamos al nuevo método refactorizado que llama a FieldRenderers
-        const displayValue = this.renderFieldValue(field.type, value);
+                    // Acordeón Móvil
+                    const accordionContentClass = isActive
+                      ? "max-h-[5000px] opacity-100 pb-6"
+                      : "max-h-0 opacity-0 overflow-hidden";
+                    const accordionIconRotation = isActive ? "rotate-180" : "";
 
-        return `
-        <div class="${spanClass} bg-slate-50/50 rounded-xl p-4 border border-slate-100 hover:bg-slate-50 hover:shadow-sm transition-all group print:break-inside-avoid print:bg-white print:border-slate-300">
-          <dt class="text-xs font-bold text-slate-400 uppercase tracking-wide mb-1.5 flex items-center gap-2">
-             ${field.label}
-          </dt>
-          <dd class="text-sm text-slate-800 break-words leading-relaxed font-medium">
-             ${displayValue}
-          </dd>
-        </div>
-      `;
-      })
-      .join("");
+                    return `
+                    <div class="viewer-group-container ${visibilityClass} print:!block print:!visible print:!max-h-none print:!opacity-100" id="${
+                      group.id
+                    }">
+                        
+                        <button type="button" 
+                                class="viewer-accordion-trigger md:hidden w-full flex items-center justify-between p-4 bg-white border-b border-slate-100 mb-2 print:hidden group">
+                            <div class="flex items-center gap-3 font-bold text-slate-700 group-hover:text-primary transition-colors">
+                                <i class="${group.icon} text-slate-400"></i>
+                                ${group.label}
+                            </div>
+                            <i class="fas fa-chevron-down text-slate-300 transition-transform duration-300 ${accordionIconRotation}"></i>
+                        </button>
 
+                        <div class="viewer-group-content transition-all duration-500 ease-in-out md:max-h-none md:opacity-100 md:overflow-visible ${accordionContentClass} print:!block print:!max-h-none print:!opacity-100 print:!overflow-visible">
+                            <h3 class="hidden print:block text-lg font-bold text-slate-800 mb-4 mt-6 border-b border-slate-200 pb-2">
+                                <i class="${
+                                  group.icon
+                                } mr-2 text-slate-400"></i>${group.label}
+                            </h3>
+
+                            <dl class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                ${renderFieldsHTML(group.fields)}
+                            </dl>
+                        </div>
+                    </div>`;
+                  })
+                  .join("")}
+            </div>
+        </div>`;
+    }
+
+    // Header y estructura general (Sin cambios mayores, solo inyectamos contentHtml)
     container.innerHTML = `
       <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 no-print">
          <button id="backBtn" class="group flex items-center text-slate-500 hover:text-primary transition-colors font-medium">
@@ -161,36 +276,40 @@ export class DocumentViewer {
          </div>
       </div>
 
-      <div id="documentCard" class="bg-white rounded-3xl shadow-2xl shadow-slate-200/60 border border-slate-100 overflow-hidden relative print:shadow-none print:border-none">
-        <div class="relative px-8 py-10 overflow-hidden">
-             <div class="absolute inset-0 opacity-10" style="background-color: ${this.template.color}"></div>
+      <div id="documentCard" class="bg-white rounded-3xl shadow-2xl shadow-slate-200/60 border border-slate-100 overflow-hidden relative print:shadow-none print:border-none print:rounded-none">
+        
+        <div class="relative px-8 py-10 overflow-hidden print:px-0 print:py-4">
+             <div class="absolute inset-0 opacity-10 print:hidden" style="background-color: ${this.template.color}"></div>
              <div class="absolute top-0 left-0 w-full h-1.5" style="background-color: ${this.template.color}"></div>
+             
              <div class="relative z-10 flex gap-6 items-start">
-                <div class="flex-shrink-0 w-20 h-20 rounded-2xl flex items-center justify-center text-4xl shadow-lg bg-white text-gradient" style="color: ${this.template.color}">${this.template.icon}</div>
+                <div class="flex-shrink-0 w-20 h-20 rounded-2xl flex items-center justify-center text-4xl shadow-lg bg-white text-gradient print:border print:border-slate-200 print:shadow-none" style="color: ${this.template.color}">
+                    ${this.template.icon}
+                </div>
                 <div>
                    <h1 class="text-2xl sm:text-4xl font-extrabold text-slate-800 tracking-tight leading-tight mb-2">${this.document.metadata.title}</h1>
                    <div class="flex flex-wrap items-center gap-3 text-sm">
-                      <span class="inline-flex items-center px-2.5 py-0.5 rounded-lg font-bold text-xs uppercase tracking-wide bg-white/60 border border-slate-200/50 text-slate-600 backdrop-blur-sm">${this.template.name}</span>
+                      <span class="inline-flex items-center px-2.5 py-0.5 rounded-lg font-bold text-xs uppercase tracking-wide bg-white/60 border border-slate-200/50 text-slate-600 backdrop-blur-sm print:bg-slate-100 print:border-none">${this.template.name}</span>
                       <span class="text-slate-400 flex items-center text-xs"><i class="far fa-clock mr-1.5"></i> Actualizado: ${updatedAt}</span>
                    </div>
                 </div>
              </div>
         </div>
-        <div class="p-6 sm:p-8">
-           <dl class="grid grid-cols-1 md:grid-cols-2 print:grid-cols-2 gap-6">
-              ${fieldsHtml}
-           </dl>
+
+        <div class="p-6 sm:p-8 print:p-0 print:mt-4">
+           ${contentHtml}
         </div>
-        <div class="bg-slate-50 px-8 py-4 border-t border-slate-100 flex items-center justify-between mt-4">
+
+        <div class="bg-slate-50 px-8 py-4 border-t border-slate-100 flex items-center justify-between mt-4 print:hidden">
            <div class="flex items-center text-emerald-600 text-xs font-bold uppercase tracking-wider"><i class="fas fa-shield-alt mr-2 text-lg"></i> Cifrado E2EE Verificado</div>
            <div class="hidden sm:block text-slate-300 text-[10px] font-mono">UUID: ${this.document.id}</div>
         </div>
       </div>
 
-      <div id="rowDetailModal" class="fixed inset-0 z-50 hidden">
+      <div id="rowDetailModal" class="fixed inset-0 z-50 hidden no-print">
          <div class="absolute inset-0 bg-slate-900/40 backdrop-blur-sm transition-opacity" id="modalBackdrop"></div>
          <div class="flex items-center justify-center min-h-screen p-4">
-            <div class="bg-white rounded-3xl shadow-2xl w-full max-w-lg transform transition-all scale-100 relative overflow-hidden flex flex-col max-h-[85vh] animate-fade-in-up">
+            <div class="bg-white rounded-3xl shadow-2xl w-full max-w-lg transform transition-all relative overflow-hidden flex flex-col max-h-[85vh]">
                 <div class="px-6 py-5 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
                     <h3 class="font-bold text-lg text-slate-800">Detalles del Registro</h3>
                     <button class="close-modal w-8 h-8 flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition"><i class="fas fa-times"></i></button>
@@ -200,6 +319,7 @@ export class DocumentViewer {
          </div>
       </div>
     `;
+
     this.setupContentListeners();
   }
 
@@ -289,6 +409,7 @@ export class DocumentViewer {
   }
 
   setupContentListeners() {
+    // ... (Mantén los listeners existentes: backBtn, deleteDocBtn, editDocBtn, whatsappDocBtn, etc.) ...
     ["backBtn"].forEach((id) =>
       document
         .getElementById(id)
@@ -300,19 +421,76 @@ export class DocumentViewer {
     document
       .getElementById("editDocBtn")
       ?.addEventListener("click", () => this.handleEdit());
-
     document
       .getElementById("pdfDocBtn")
       ?.addEventListener("click", () => this.showPrintOptions());
-
     document
       .getElementById("whatsappDocBtn")
       ?.addEventListener("click", () => this.handleCopyToWhatsApp());
 
     const container = document.getElementById("documentViewerPlaceholder");
 
-    // Listeners Tabla (Search)
+    // --- NUEVO: Lógica de Tabs del Visor ---
+    const tabTriggers = container.querySelectorAll(".viewer-tab-trigger");
+    const groupContainers = container.querySelectorAll(
+      ".viewer-group-container"
+    );
+    const themeColor = this.template.color || "#6366f1";
+
+    tabTriggers.forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const targetId = btn.dataset.target;
+
+        // UI Reset
+        tabTriggers.forEach((t) => {
+          t.style.backgroundColor = "white";
+          t.style.color = "#64748b"; // slate-500
+          t.style.borderColor = "#e2e8f0"; // slate-200
+        });
+
+        // UI Active (Usando color del tema)
+        btn.style.backgroundColor = `${themeColor}15`;
+        btn.style.color = themeColor;
+        btn.style.borderColor = `${themeColor}30`;
+
+        // Visibilidad
+        groupContainers.forEach((grp) => {
+          if (grp.id === targetId) {
+            grp.classList.remove("md:hidden");
+          } else {
+            grp.classList.add("md:hidden");
+          }
+        });
+      });
+    });
+
+    // --- NUEVO: Lógica de Acordeón del Visor ---
+    const accordionTriggers = container.querySelectorAll(
+      ".viewer-accordion-trigger"
+    );
+    accordionTriggers.forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const grpContainer = btn.closest(".viewer-group-container");
+        const content = grpContainer.querySelector(".viewer-group-content");
+        const icon = btn.querySelector(".fa-chevron-down");
+
+        const isClosed = content.classList.contains("max-h-0");
+
+        if (isClosed) {
+          content.classList.remove("max-h-0", "opacity-0", "overflow-hidden");
+          content.classList.add("max-h-[5000px]", "opacity-100", "pb-6");
+          icon.classList.add("rotate-180");
+        } else {
+          content.classList.add("max-h-0", "opacity-0", "overflow-hidden");
+          content.classList.remove("max-h-[5000px]", "opacity-100", "pb-6");
+          icon.classList.remove("rotate-180");
+        }
+      });
+    });
+
+    // ... (Mantén el resto de listeners: Search, Click delegados, Row Modals) ...
     container.querySelectorAll(".table-search-input").forEach((input) => {
+      // ...
       input.addEventListener("input", (e) => {
         const fieldId = e.target.dataset.fieldId;
         this.tableStates[fieldId].search = e.target.value;
@@ -320,22 +498,20 @@ export class DocumentViewer {
       });
     });
 
-    // --- DELEGACIÓN DE EVENTOS CENTRALIZADA ---
     container.addEventListener("click", (e) => {
-      // 1. NUEVO: Trigger del MediaPlayer (El botón que agregamos en FieldRenderers)
+      // ... (Tu lógica de delegación existente para Media, Sort, Secretos, etc.)
       const mediaBtn = e.target.closest(".trigger-media-btn");
       if (mediaBtn) {
-        e.preventDefault(); // Evitar que el click propague si hay algo más
+        e.preventDefault();
         const src = mediaBtn.dataset.src;
         const type = mediaBtn.dataset.type;
         const title = mediaBtn.dataset.title;
-
-        // LLAMADA AL SINGLETON DEL REPRODUCTOR
         globalPlayer.open(type, src, title);
         return;
       }
-
-      // 2. Sort Tabla
+      // Copia aquí el resto de tus delegaciones (Sort, Secret, Copy, RowModal)
+      // ...
+      // Sort Tabla
       const header = e.target.closest(".table-header-sort");
       if (header) {
         const fieldId = header.dataset.fieldId;
@@ -349,46 +525,33 @@ export class DocumentViewer {
         }
         this.refreshTableFieldHTML(fieldId);
       }
-
-      // 3. Secretos (Reveal/Hide)
+      // ... (Secretos, Copy, ViewRowBtn, etc.)
       const toggleBtn = e.target.closest(".toggle-secret-btn");
       if (toggleBtn) {
-        // 1. BUSCAR WRAPPER: Buscamos hacia arriba hasta encontrar el contenedor que tiene la máscara
-        // Esto funciona tanto para el diseño "Tarjeta" como para el nuevo diseño "Tabla Minimalista"
+        // ... lógica secretos
         let wrapper = toggleBtn.parentElement;
         while (wrapper && !wrapper.querySelector(".secret-mask")) {
           wrapper = wrapper.parentElement;
         }
-
         if (wrapper) {
           const mask = wrapper.querySelector(".secret-mask");
           const revealed = wrapper.querySelector(".secret-revealed");
           const icon = toggleBtn.querySelector("i");
-
           if (revealed.classList.contains("hidden")) {
-            // MOSTRAR
             mask.classList.add("hidden");
             revealed.classList.remove("hidden");
-
-            // Cambiar icono manteniendo el tamaño original (si tiene text-[10px] lo respeta)
             icon.classList.remove("fa-eye");
             icon.classList.add("fa-eye-slash");
-
-            toggleBtn.classList.add("text-indigo-600"); // Color activo
+            toggleBtn.classList.add("text-indigo-600");
           } else {
-            // OCULTAR
             mask.classList.remove("hidden");
             revealed.classList.add("hidden");
-
             icon.classList.remove("fa-eye-slash");
             icon.classList.add("fa-eye");
-
             toggleBtn.classList.remove("text-indigo-600");
           }
         }
       }
-
-      // 4. Copiar Texto
       const copyBtn = e.target.closest(".copy-btn");
       if (copyBtn) {
         navigator.clipboard.writeText(copyBtn.dataset.value);
@@ -397,7 +560,6 @@ export class DocumentViewer {
         setTimeout(() => (icon.className = "far fa-copy"), 1500);
       }
 
-      // 5. Detalles Fila (Modales de tablas complejas)
       const viewRowBtn = e.target.closest(".view-row-btn");
       if (viewRowBtn)
         this.openRowModal(
@@ -406,7 +568,6 @@ export class DocumentViewer {
         );
     });
 
-    // Modales (Row Detail) - Nota: Se eliminó el "mediaModal" viejo
     const rowModal = document.getElementById("rowDetailModal");
     const closeRowModal = () => rowModal.classList.add("hidden");
     rowModal
