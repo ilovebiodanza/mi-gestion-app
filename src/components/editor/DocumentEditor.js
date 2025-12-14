@@ -21,6 +21,7 @@ export class DocumentEditor {
     this.isSubmitting = false;
     this.formManager = null;
 
+    // Aseguramos que los campos estén registrados (Texto, Número, Tabla, etc.)
     registerCoreFields();
 
     if (this.isEditing && !this.template) {
@@ -90,6 +91,7 @@ export class DocumentEditor {
       iconHtml = `<span class="text-3xl leading-none select-none">${iconVal}</span>`;
     }
 
+    // --- CAMBIO: HTML Limpio sin clases 'print:' ---
     const htmlContent = `
       <div class="max-w-5xl mx-auto bg-white rounded-3xl shadow-xl overflow-hidden animate-fade-in-up">
         
@@ -109,7 +111,7 @@ export class DocumentEditor {
                  ${
                    this.isEditing
                      ? '<span class="text-[10px] text-amber-500 font-bold"><i class="fas fa-pencil-alt"></i> Editando</span>'
-                     : ""
+                     : '<span class="text-[10px] text-emerald-500 font-bold"><i class="fas fa-plus"></i> Nuevo</span>'
                  }
               </div>
               
@@ -142,7 +144,7 @@ export class DocumentEditor {
             this.documentMetadata.tags || []
           ).join(", ")}">
 
-          <form id="dynamicForm" class="grid grid-cols-1 md:grid-cols-2 print:grid-cols-2 gap-6 animate-fade-in">
+          <form id="dynamicForm" class="grid grid-cols-1 md:grid-cols-2 gap-6 animate-fade-in">
              ${this.formManager.renderHtml()}
           </form>
 
@@ -210,13 +212,27 @@ export class DocumentEditor {
         updatedAt: new Date().toISOString(),
       };
 
+      // --- CAMBIO CLAVE: Capturar el resultado para obtener el ID ---
+      let savedDoc = null;
+
       if (this.isEditing) {
-        await documentService.update(this.documentId, documentPayload);
+        // update devuelve { id: docId, ... }
+        savedDoc = await documentService.update(
+          this.documentId,
+          documentPayload
+        );
       } else {
-        await documentService.create(documentPayload);
+        // create devuelve documentData que incluye { id: ... }
+        savedDoc = await documentService.create(documentPayload);
       }
 
-      this.onSaveSuccess();
+      // Pasamos el ID al callback para que app.js redirija al Visor
+      if (savedDoc && savedDoc.id) {
+        this.onSaveSuccess(savedDoc.id);
+      } else {
+        // Fallback por si acaso
+        this.onSaveSuccess();
+      }
     } catch (error) {
       console.error("Error guardando:", error);
       alert("Error al guardar: " + error.message);

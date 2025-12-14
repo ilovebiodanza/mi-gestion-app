@@ -7,37 +7,37 @@ export class TableFieldController extends AbstractField {
   constructor(fieldDef, initialValue, onChange) {
     super(fieldDef, Array.isArray(initialValue) ? initialValue : [], onChange);
     this.columns = this.def.columns || [];
-    // Generamos IDs únicos para los elementos de este controlador específico
+    // IDs únicos para evitar colisiones
     this.wrapperId = `table-wrapper-${this.def.id}`;
     this.tbodyId = `tbody-${this.def.id}`;
   }
 
   renderInput() {
-    // HEADERS
+    // HEADERS (Solo visibles en escritorio)
     const headers = this.columns
       .map(
         (col) =>
-          `<th class="px-4 py-2 text-left text-xs font-bold text-slate-500 uppercase tracking-wider hidden md:table-cell print:table-cell border-b border-slate-200">${col.label}</th>`
+          `<th class="px-4 py-2 text-left text-xs font-bold text-slate-500 uppercase tracking-wider hidden md:table-cell border-b border-slate-200">${col.label}</th>`
       )
       .join("");
 
-    // Agregamos el ID único al contenedor principal (this.wrapperId)
+    // --- CAMBIO: HTML Limpio (Sin clases print:*) ---
     return `
       <div id="${
         this.wrapperId
-      }" class="table-field-container border border-slate-200 rounded-xl overflow-hidden bg-slate-50 md:bg-white print:bg-white shadow-sm print:shadow-none print:border-none">
-        <div class="overflow-x-auto print:overflow-visible">
+      }" class="table-field-container border border-slate-200 rounded-xl overflow-hidden bg-slate-50 md:bg-white shadow-sm">
+        <div class="overflow-x-auto">
           
-          <table class="w-full text-left border-collapse print:table">
+          <table class="w-full text-left border-collapse">
             
-            <thead class="bg-slate-50 hidden md:table-header-group print:table-header-group">
+            <thead class="bg-slate-50 hidden md:table-header-group">
               <tr>
                 ${headers}
-                <th class="w-20 px-4 py-2 text-center text-xs font-bold text-slate-500 uppercase hidden md:table-cell print:hidden">Acciones</th>
+                <th class="w-20 px-4 py-2 text-center text-xs font-bold text-slate-500 uppercase hidden md:table-cell">Acciones</th>
               </tr>
             </thead>
 
-            <tbody class="block md:table-row-group print:table-row-group p-4 md:p-0 print:p-0 space-y-4 md:space-y-0 print:space-y-0 divide-y divide-slate-200 md:divide-slate-100 print:divide-slate-200" id="${
+            <tbody class="block md:table-row-group p-4 md:p-0 space-y-4 md:space-y-0 divide-y divide-slate-200 md:divide-slate-100" id="${
               this.tbodyId
             }">
               ${this.renderRows()}
@@ -46,7 +46,7 @@ export class TableFieldController extends AbstractField {
 
         </div>
         
-        <button type="button" class="add-row-btn w-full py-3 bg-white md:bg-slate-50 hover:bg-indigo-50 text-slate-500 hover:text-indigo-600 font-bold text-xs uppercase tracking-wider transition-colors border-t border-slate-200 flex items-center justify-center gap-2 group print:hidden">
+        <button type="button" class="add-row-btn w-full py-3 bg-white md:bg-slate-50 hover:bg-indigo-50 text-slate-500 hover:text-indigo-600 font-bold text-xs uppercase tracking-wider transition-colors border-t border-slate-200 flex items-center justify-center gap-2 group">
            <i class="fas fa-plus-circle group-hover:scale-110 transition-transform"></i> Agregar Registro
         </button>
       </div>
@@ -59,7 +59,7 @@ export class TableFieldController extends AbstractField {
     if (this.value.length === 0) {
       return `<tr><td colspan="${
         this.columns.length + 1
-      }" class="block md:table-cell print:table-cell p-6 text-center text-xs text-slate-400 italic">No hay registros aún.</td></tr>`;
+      }" class="block md:table-cell p-6 text-center text-xs text-slate-400 italic">No hay registros aún.</td></tr>`;
     }
 
     return this.value
@@ -67,8 +67,8 @@ export class TableFieldController extends AbstractField {
         const cells = this.columns
           .map((col) => {
             return `
-            <td class="block md:table-cell print:table-cell px-4 py-2 md:py-3 print:py-2 align-top text-sm border-b md:border-none print:border-b print:border-slate-100 border-slate-100 last:border-0">
-                <span class="md:hidden print:hidden block text-[10px] font-bold text-slate-400 uppercase mb-1">${
+            <td class="block md:table-cell px-4 py-2 md:py-3 align-top text-sm border-b md:border-none border-slate-100 last:border-0">
+                <span class="md:hidden block text-[10px] font-bold text-slate-400 uppercase mb-1">${
                   col.label
                 }</span>
                 <div class="text-slate-700 font-medium">${renderCellPreview(
@@ -80,7 +80,7 @@ export class TableFieldController extends AbstractField {
           .join("");
 
         const actions = `
-          <td class="block md:table-cell print:hidden px-4 py-3 md:py-3 text-right md:text-center align-middle whitespace-nowrap bg-slate-50 md:bg-transparent rounded-b-xl md:rounded-none border-t md:border-none border-slate-100">
+          <td class="block md:table-cell px-4 py-3 md:py-3 text-right md:text-center align-middle whitespace-nowrap bg-slate-50 md:bg-transparent rounded-b-xl md:rounded-none border-t md:border-none border-slate-100">
              <div class="flex items-center justify-end md:justify-center gap-2">
                  <button type="button" class="edit-btn w-8 h-8 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors" data-index="${index}" title="Editar">
                     <i class="fas fa-pencil-alt text-xs"></i>
@@ -92,7 +92,7 @@ export class TableFieldController extends AbstractField {
           </td>`;
 
         return `
-        <tr class="block md:table-row print:table-row bg-white md:hover:bg-slate-50 transition-colors group rounded-xl shadow-sm md:shadow-none print:shadow-none border border-slate-200 md:border-none print:border-none mb-4 md:mb-0 page-break-inside-avoid">
+        <tr class="block md:table-row bg-white md:hover:bg-slate-50 transition-colors group rounded-xl shadow-sm md:shadow-none border border-slate-200 md:border-none mb-4 md:mb-0">
           ${cells}
           ${actions}
         </tr>`;
@@ -103,29 +103,22 @@ export class TableFieldController extends AbstractField {
   postRender(container) {
     super.postRender(container);
 
-    // 1. Localizamos NUESTRO contenedor específico usando el ID único
     const myWrapper = container.querySelector(`#${this.wrapperId}`);
-
-    // Si no encontramos el wrapper (algo raro pasó), salimos para evitar errores
     if (!myWrapper) return;
 
-    // 2. Buscamos elementos SOLO dentro de nuestro wrapper
     this.tbody = myWrapper.querySelector(`#${this.tbodyId}`);
     const addBtn = myWrapper.querySelector(`.add-row-btn`);
 
-    // 3. Los listeners ahora son seguros y específicos para esta instancia
     if (addBtn)
       addBtn.addEventListener("click", (e) => {
-        e.stopPropagation(); // Buena práctica para evitar burbujeo en anidamientos
+        e.stopPropagation();
         this.openRowEditor(null);
       });
 
-    // Delegación de eventos limitada a este wrapper
     myWrapper.addEventListener("click", (e) => {
       const editBtn = e.target.closest(".edit-btn");
       const removeBtn = e.target.closest(".remove-btn");
 
-      // Verificamos que el botón realmente esté dentro de este componente (redundancia de seguridad)
       if (!myWrapper.contains(editBtn) && !myWrapper.contains(removeBtn))
         return;
 
@@ -156,10 +149,8 @@ export class TableFieldController extends AbstractField {
     const initialData = isEdit ? this.value[rowIndex] : {};
     const formManager = new FormManager(this.columns, initialData);
 
-    // Z-Index alto para asegurar que se vea sobre otros elementos
     const modalId = `modal-${this.def.id}-${Date.now()}`;
 
-    // HTML del Modal
     const modalHTML = `
       <div id="${modalId}" class="fixed inset-0 z-[100] flex items-center justify-center p-4 animate-fade-in" style="z-index: 1000;">
         <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity modal-backdrop"></div>
@@ -187,12 +178,10 @@ export class TableFieldController extends AbstractField {
     const modalEl = document.getElementById(modalId);
     const formBody = document.getElementById(`modal-form-body-${modalId}`);
 
-    // Inicializamos el formManager hijo dentro del cuerpo del modal
     formManager.postRender(formBody);
 
     const closeModal = () => modalEl.remove();
 
-    // Manejadores del modal
     modalEl.querySelector(".modal-backdrop").onclick = closeModal;
     modalEl.querySelector(".modal-close").onclick = closeModal;
     modalEl.querySelector(".modal-cancel").onclick = closeModal;

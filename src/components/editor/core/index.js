@@ -9,6 +9,7 @@ import { DateField } from "./fields/DateField.js";
 import { SecretField } from "./fields/SecretField.js";
 import { TableFieldController } from "./fields/TableFieldController.js";
 import { UrlField } from "./fields/UrlField.js";
+import { SeparatorField } from "./fields/SeparatorField.js";
 
 // Registro de tipos básicos
 export function registerCoreFields() {
@@ -28,4 +29,5 @@ export function registerCoreFields() {
 
   fieldRegistry.register("table", TableFieldController);
   fieldRegistry.register("url", UrlField);
+  fieldRegistry.register("separator", SeparatorField);
 }
