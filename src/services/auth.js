@@ -79,13 +79,27 @@ class AuthService {
   async login(email, password) {
     if (!this.auth) throw new Error("Firebase no inicializado");
     try {
-      const { signInWithEmailAndPassword } = window.firebaseModules;
+      const { signInWithEmailAndPassword, signOut } = window.firebaseModules;
       const cred = await signInWithEmailAndPassword(this.auth, email, password);
+
+      // [NUEVO] Validación de correo verificado
+      if (!cred.user.emailVerified) {
+        // Si no está verificado, cerramos la sesión inmediatamente
+        await signOut(this.auth);
+        this.updateState(null);
+
+        // Lanzamos un error personalizado para capturarlo en el UI
+        const error = new Error("El correo no ha sido verificado.");
+        error.code = "auth/email-not-verified";
+        throw error;
+      }
+
       this.updateState(cred.user);
       return { success: true, user: cred.user };
     } catch (error) {
       console.error("Error Login:", error.code);
-      await this.logout();
+      // No llamamos a logout aquí si es error de credenciales, pero sí aseguramos limpieza
+      if (this.user) await this.logout();
       throw error;
     }
   }
@@ -93,26 +107,49 @@ class AuthService {
   async register(email, password) {
     if (!this.auth) throw new Error("Firebase no inicializado");
     try {
-      const { createUserWithEmailAndPassword, setDoc, doc } =
-        window.firebaseModules;
+      const {
+        createUserWithEmailAndPassword,
+        sendEmailVerification,
+        setDoc,
+        doc,
+        signOut,
+      } = window.firebaseModules;
+
       const cred = await createUserWithEmailAndPassword(
         this.auth,
         email,
         password
       );
 
-      // Init Lazy
+      // Init Lazy (Metadatos)
       await setDoc(doc(this.db, "users", cred.user.uid, "system", "metadata"), {
         vaultConfigured: false,
         createdAt: new Date().toISOString(),
       });
 
-      this.updateState(cred.user);
-      return { success: true, user: cred.user };
+      // [NUEVO] Enviar correo de verificación
+      await sendEmailVerification(cred.user);
+
+      // [NUEVO] Cerramos sesión para que no entre directo al dashboard
+      await signOut(this.auth);
+      this.updateState(null);
+
+      return { success: true, requiresVerification: true };
     } catch (error) {
       console.error("Error Registro:", error);
       throw error;
     }
+  }
+
+  // [NUEVO] Método auxiliar para reenviar correo
+  async resendVerificationEmail(email, password) {
+    const { signInWithEmailAndPassword, sendEmailVerification, signOut } =
+      window.firebaseModules;
+    // Necesitamos loguear temporalmente para enviar el correo
+    const cred = await signInWithEmailAndPassword(this.auth, email, password);
+    await sendEmailVerification(cred.user);
+    await signOut(this.auth);
+    return true;
   }
 
   async logout() {

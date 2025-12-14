@@ -32,6 +32,15 @@ async function initializeApplication() {
 
 async function handleAuthStateChange(user, appElement) {
   if (user) {
+    // [NUEVO] Doble chequeo de seguridad
+    if (!user.emailVerified) {
+      console.warn("Usuario detectado pero no verificado. Cerrando sesión...");
+      await authService.logout();
+      showAuthForms(appElement);
+      toast.show("Debes verificar tu correo para continuar", "error");
+      return;
+    }
+
     try {
       await templateService.initialize(user.uid);
     } catch (error) {

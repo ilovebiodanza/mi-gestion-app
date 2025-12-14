@@ -114,22 +114,58 @@ export class AuthForms {
       try {
         if (this.isLoginMode) {
           await authService.login(email, password);
+          this.onLoginSuccess(); // Solo entra si login no lanzó error
         } else {
-          await authService.register(email, password);
+          // Registro
+          const result = await authService.register(email, password);
+
+          if (result.requiresVerification) {
+            // Restaurar botón
+            btn.disabled = false;
+            btn.innerHTML = originalContent;
+
+            // Cambiar a modo Login para que el usuario ingrese sus datos después de verificar
+            switchMode(true);
+
+            // Mostrar alerta (O usar Toast si prefieres)
+            alert(
+              `Cuenta creada con éxito. Hemos enviado un enlace de verificación a ${email}. Por favor revisa tu bandeja de entrada (y spam) antes de iniciar sesión.`
+            );
+
+            // Limpiar campos
+            form.reset();
+            return; // IMPORTANTE: No llamamos a onLoginSuccess()
+          }
+
+          this.onLoginSuccess();
         }
-        this.onLoginSuccess();
       } catch (error) {
         // Restaurar botón
         btn.disabled = false;
         btn.innerHTML = originalContent;
 
-        // DELEGACIÓN DE ERROR:
-        // Si existe el callback onError, lo ejecutamos pasando el objeto error completo.
-        // app.js se encargará de mostrar el Toast y manejar la lógica de "User Not Found".
+        // Manejo específico para el error que creamos en auth.js
+        if (error.code === "auth/email-not-verified") {
+          if (
+            confirm(
+              "Tu correo no ha sido verificado aún. ¿Deseas que reenviemos el correo de verificación?"
+            )
+          ) {
+            try {
+              await authService.resendVerificationEmail(email, password);
+              alert("Correo reenviado. Revisa tu bandeja de entrada.");
+            } catch (resendError) {
+              console.error(resendError);
+              if (this.onError) this.onError(resendError);
+            }
+          }
+          return;
+        }
+
+        // DELEGACIÓN DE ERROR (Existente)
         if (this.onError) {
           this.onError(error);
         } else {
-          // Fallback simple por seguridad
           console.error("Auth Error:", error);
           alert(error.message);
         }
