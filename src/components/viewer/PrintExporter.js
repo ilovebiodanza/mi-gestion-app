@@ -1,11 +1,11 @@
 import { getLocalCurrency } from "../../utils/helpers.js";
 
-export function printDocument(
+export const printDocument = (
   documentMetadata,
   template,
   decryptedData,
   isCompact = false
-) {
+) => {
   const existingIframe = document.getElementById("print-target-iframe");
   if (existingIframe) {
     document.body.removeChild(existingIframe);
@@ -68,7 +68,7 @@ export function printDocument(
         </html>
     `);
   doc.close();
-}
+};
 
 function generatePrintHtml(
   metadata,

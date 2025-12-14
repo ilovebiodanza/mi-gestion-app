@@ -284,14 +284,8 @@ export class DocumentViewer {
     };
     // Importante: Ahora pasamos el 4to argumento 'isCompact'
     // Asegúrate de importar printDocument arriba
-    import("./PrintExporter.js").then((module) => {
-      module.printDocument(
-        dataToPrint,
-        this.template,
-        this.decryptedData,
-        isCompact
-      );
-    });
+
+    printDocument(dataToPrint, this.template, this.decryptedData, isCompact);
   }
 
   setupContentListeners() {
