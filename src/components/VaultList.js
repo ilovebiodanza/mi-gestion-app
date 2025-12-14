@@ -3,6 +3,7 @@ import { documentService } from "../services/documents/index.js";
 import { authService } from "../services/auth.js";
 import { VaultSetupModal } from "./VaultSetupModal.js";
 import { encryptionService } from "../services/encryption/index.js";
+import { formatBytes } from "../utils/helpers.js";
 
 export class VaultList {
   constructor(onViewDocument, onNewDocument) {
@@ -64,22 +65,73 @@ export class VaultList {
       </div>`;
 
     try {
-      // 1. Cargar datos
+      // 1. Cargar datos Y estadísticas en paralelo
+      const [documents, stats] = await Promise.all([
+        documentService.listDocuments(),
+        documentService.getStorageStats(),
+      ]);
       this.documents = await documentService.listDocuments();
 
-      // 2. Preparar Layout (Contenedor de Filtros + Contenedor de Grid)
+      // 2. Preparar Layout (Agregamos el contenedor del Widget de Storage)
       container.innerHTML = `
-        <div id="vaultFiltersContainer" class="mb-8 flex flex-wrap items-center gap-2 animate-fade-in"></div>
+        <div class="flex flex-col md:flex-row justify-between items-end md:items-center mb-6 gap-4 animate-fade-in">
+             <div id="vaultFiltersContainer" class="flex flex-wrap items-center gap-2"></div>
+             <div id="vaultStorageWidget" class="w-full md:w-auto"></div>
+        </div>
         <div id="vaultGridContainer" class="animate-fade-in-up"></div>
       `;
 
       // 3. Renderizar componentes
+      this.renderStorageWidget(stats);
       this.renderFilters();
       this.renderGrid();
     } catch (error) {
       console.error("Error cargando bóveda:", error);
       this.renderErrorState(container);
     }
+  }
+
+  /**
+   * Renderiza el widget de control de espacio
+   */
+  renderStorageWidget(stats) {
+    const container = document.getElementById("vaultStorageWidget");
+    if (!container) return;
+
+    // Definimos un límite teórico para la barra de progreso (ej: 50MB para la versión gratuita)
+    // Esto es visual para que el usuario tenga una referencia.
+    const STORAGE_LIMIT = 50 * 1024 * 1024; // 50 MB
+    const percentage = Math.min(
+      (stats.bytes / STORAGE_LIMIT) * 100,
+      100
+    ).toFixed(1);
+
+    // Color de la barra según uso
+    let progressColor = "bg-indigo-500";
+    if (percentage > 70) progressColor = "bg-amber-500";
+    if (percentage > 90) progressColor = "bg-red-500";
+
+    container.innerHTML = `
+      <div class="bg-white border border-slate-200 rounded-2xl p-3 shadow-sm flex items-center gap-4 min-w-[240px]">
+          <div class="w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center text-slate-400">
+              <i class="fas fa-database"></i>
+          </div>
+          <div class="flex-1">
+              <div class="flex justify-between items-center mb-1">
+                  <span class="text-xs font-bold text-slate-500 uppercase tracking-wider">Almacenamiento</span>
+                  <span class="text-xs font-bold text-slate-700">${formatBytes(
+                    stats.bytes
+                  )}</span>
+              </div>
+              <div class="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
+                  <div class="${progressColor} h-2 rounded-full transition-all duration-1000" style="width: ${percentage}%"></div>
+              </div>
+              <p class="text-[10px] text-slate-400 mt-1 text-right">
+                ${stats.count} documento(s) cifrado(s)
+              </p>
+          </div>
+      </div>
+    `;
   }
 
   /**

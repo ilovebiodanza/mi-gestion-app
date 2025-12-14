@@ -234,6 +234,38 @@ class DocumentService {
     console.log(`✅ ${docsToDelete.length} documentos eliminados.`);
     return docsToDelete.length;
   }
+  /**
+   * Calcula el espacio utilizado aproximado por los documentos
+   * Retorna objeto con bytes totales y cantidad de documentos
+   */
+  async getStorageStats() {
+    try {
+      const docs = await this.getAllDocuments();
+      let totalBytes = 0;
+
+      docs.forEach((doc) => {
+        // 1. Peso del contenido cifrado (es lo que más ocupa)
+        if (doc.encryptedContent) {
+          // String.length es aprox bytes en UTF-16, pero para almacenamiento/transmisión
+          // JSON se acerca más al byte length. Usamos Blob para precisión.
+          totalBytes += new Blob([JSON.stringify(doc.encryptedContent)]).size;
+        }
+
+        // 2. Peso de los metadatos
+        if (doc.metadata) {
+          totalBytes += new Blob([JSON.stringify(doc.metadata)]).size;
+        }
+      });
+
+      return {
+        count: docs.length,
+        bytes: totalBytes,
+      };
+    } catch (error) {
+      console.error("Error calculando storage:", error);
+      return { count: 0, bytes: 0 };
+    }
+  }
 }
 
 export const documentService = new DocumentService();
