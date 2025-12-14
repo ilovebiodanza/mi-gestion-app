@@ -101,7 +101,12 @@ class BackupService {
 
             if (template) {
               // Recreamos el documento para que tenga un ID nuevo y se cifre con la llave de hoy
-              await documentService.create(template, plainData);
+              // await documentService.create(template, plainData);
+              await documentService.create({
+                title: doc.metadata.title,
+                template,
+                data: plainData,
+              });
               restoredCount++;
             }
           }

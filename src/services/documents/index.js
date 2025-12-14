@@ -41,6 +41,8 @@ class DocumentService {
     console.log("🔒 Creando documento...");
     const { title, data, template, tags } = payload;
 
+    console.log({ payload });
+
     const metadata = {
       title: title || "Sin Título",
       templateName: template.name,
@@ -84,13 +86,14 @@ class DocumentService {
 
     const updatePayload = {
       encryptedContent: encryptedObject,
-      "metadata.title": title,
-      "metadata.tags": tags || [],
-      "metadata.updatedAt": new Date().toISOString(),
-      // Actualizamos visuales por si cambiaron en el template
-      "metadata.icon": template.icon,
-      "metadata.color": template.color,
-      "metadata.templateName": template.name,
+      metadata: {
+        title: title,
+        tags: tags || [],
+        updatedAt: new Date().toISOString(),
+        icon: template.icon,
+        color: template.color,
+        templateName: template.name,
+      },
     };
 
     await setDoc(docRef, updatePayload, { merge: true });
