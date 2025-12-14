@@ -154,7 +154,7 @@ export class ColumnConfigModal {
     const newCol = {
       id: `col_${Date.now()}`,
       label: "",
-      type: "text",
+      type: "string",
       required: false,
     };
     this.addColumnController(newCol, index);
