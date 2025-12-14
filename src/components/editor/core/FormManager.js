@@ -2,18 +2,18 @@
 import { fieldRegistry } from "./FieldRegistry.js";
 
 export class FormManager {
-  /**
-   * @param {Array} fieldsDef - Array de definiciones de campos
-   * @param {Object} initialData - Datos iniciales
-   */
   constructor(fieldsDef, initialData = {}) {
     this.fieldsDef = fieldsDef;
     this.formData = { ...initialData };
     this.controllers = {};
-    // Estado interno para el tab activo (por defecto el principal)
+
+    // Nueva propiedad para manejar el estado de las pestañas
     this.activeTabId = "group-principal";
   }
 
+  /**
+   * Método auxiliar para agrupar campos basado en separadores
+   */
   /**
    * Agrupa los campos basándose en los separadores.
    * Retorna un array de objetos "Grupo".
@@ -58,23 +58,20 @@ export class FormManager {
     return groups;
   }
 
-  /**
-   * Genera el HTML del formulario con Tabs (PC) y Acordeones (Móvil)
-   */
   renderHtml() {
     if (!this.fieldsDef || !Array.isArray(this.fieldsDef)) {
-      console.warn("FormManager: No hay definiciones de campos válidas.");
       return "";
     }
 
     const groups = this.groupFields();
 
-    // CASO SIMPLE: Si solo hay un grupo (sin separadores), renderizamos plano.
+    // Si solo hay un grupo (Principal), renderizamos plano como antes (sin tabs)
+    // Esto es útil para plantillas simples.
     if (groups.length === 1) {
       return this.renderFieldsFlat(groups[0].fields);
     }
 
-    // CASO MULTI-GRUPO: Renderizamos layout híbrido
+    // Renderizado con Tabs/Acordeón
     return `
       <div class="col-span-full form-layout-container">
           
@@ -92,6 +89,11 @@ export class FormManager {
                             data-target="${group.id}">
                         <i class="${group.icon} text-xs opacity-70"></i>
                         ${group.label}
+                        ${
+                          this.hasErrorInGroup(group)
+                            ? '<span class="w-2 h-2 rounded-full bg-red-500 ml-1"></span>'
+                            : ""
+                        }
                     </button>
                   `;
                 })
@@ -102,22 +104,8 @@ export class FormManager {
               ${groups
                 .map((group, index) => {
                   const isActive = index === 0;
-
-                  // LÓGICA DE VISIBILIDAD:
-                  // Desktop: Si es activo, se ve. Si no, 'md:hidden' lo oculta.
-                  // Móvil: Siempre visible el contenedor (el acordeón maneja el interior).
+                  // En PC: 'hidden' si no es activo. En Móvil: siempre visible (el acordeón maneja la altura)
                   const desktopHiddenClass = isActive ? "" : "md:hidden";
-
-                  // LÓGICA DE ACORDEÓN (Móvil):
-                  // Si es activo (primero), empieza abierto. Si no, cerrado (max-h-0).
-                  const accordionContentClass = isActive
-                    ? "max-h-[5000px] opacity-100 pb-4"
-                    : "max-h-0 opacity-0 overflow-hidden";
-
-                  const accordionIconRotation = isActive ? "rotate-180" : "";
-                  const accordionBorderClass = isActive
-                    ? "ring-2 ring-indigo-500/20 border-indigo-200"
-                    : "";
 
                   return `
                     <div class="group-container ${desktopHiddenClass}" id="${
@@ -125,16 +113,26 @@ export class FormManager {
                   }" data-group-index="${index}">
                         
                         <button type="button" 
-                                class="accordion-trigger md:hidden w-full flex items-center justify-between p-4 bg-white border border-slate-200 rounded-xl shadow-sm mb-3 transition-all ${accordionBorderClass}">
+                                class="accordion-trigger md:hidden w-full flex items-center justify-between p-4 bg-white border border-slate-200 rounded-xl shadow-sm mb-3 transition-all ${
+                                  isActive
+                                    ? "ring-2 ring-indigo-500/20 border-indigo-200"
+                                    : ""
+                                }">
                             <div class="flex items-center gap-3 font-bold text-slate-700">
                                 <i class="${group.icon} text-indigo-500"></i>
                                 ${group.label}
                             </div>
-                            <i class="fas fa-chevron-down text-slate-400 transition-transform duration-300 ${accordionIconRotation}"></i>
+                            <i class="fas fa-chevron-down transition-transform ${
+                              isActive ? "rotate-180" : ""
+                            }"></i>
                         </button>
 
-                        <div class="group-content transition-all duration-500 ease-in-out md:max-h-none md:opacity-100 md:overflow-visible ${accordionContentClass}">
-                             <div class="grid grid-cols-1 md:grid-cols-2 gap-6 p-1">
+                        <div class="group-content transition-all duration-300 ${
+                          isActive
+                            ? "max-h-[5000px] opacity-100"
+                            : "max-h-0 opacity-0 md:max-h-none md:opacity-100 overflow-hidden"
+                        }">
+                             <div class="grid grid-cols-1 md:grid-cols-2 gap-6 p-1 md:p-2">
                                 ${this.renderFieldsFlat(group.fields)}
                              </div>
                         </div>
@@ -148,11 +146,9 @@ export class FormManager {
   }
 
   /**
-   * Renderiza una lista simple de campos
+   * Renderiza una lista plana de campos (reutilizado)
    */
   renderFieldsFlat(fields) {
-    if (!fields || fields.length === 0) return "";
-
     return fields
       .map((fieldDef) => {
         const controller = fieldRegistry.createController(
@@ -160,18 +156,22 @@ export class FormManager {
           this.formData[fieldDef.id],
           (id, newValue) => this.handleFieldChange(id, newValue)
         );
-
         this.controllers[fieldDef.id] = controller;
         return controller.render();
       })
       .join("");
   }
 
+  // Helper placeholder (se implementará lógica real en validación)
+  hasErrorInGroup(group) {
+    return false;
+  }
+
   /**
-   * Inicializa listeners para interacción (Tabs, Acordeones, Campos)
+   * ACTUALIZADO: Listeners para Tabs y Acordeones
    */
   postRender(container) {
-    // 1. Inicializar controladores de campos (Input listeners)
+    // 1. Inicializar controladores de campos
     Object.values(this.controllers).forEach((controller) => {
       if (controller.postRender) {
         controller.postRender(container);
@@ -186,7 +186,7 @@ export class FormManager {
       btn.addEventListener("click", () => {
         const targetId = btn.dataset.target;
 
-        // UI Tabs: Actualizar clases activas/inactivas
+        // UI Pestañas
         tabTriggers.forEach((t) => {
           t.classList.remove(
             "border-indigo-500",
@@ -202,7 +202,7 @@ export class FormManager {
           "bg-indigo-50/50"
         );
 
-        // UI Contenido: Mostrar solo el grupo seleccionado
+        // Mostrar/Ocultar Contenedores (Solo afecta la clase md:hidden)
         groupContainers.forEach((grp) => {
           if (grp.id === targetId) {
             grp.classList.remove("md:hidden");
@@ -210,8 +210,6 @@ export class FormManager {
             grp.classList.add("md:hidden");
           }
         });
-
-        this.activeTabId = targetId;
       });
     });
 
@@ -223,12 +221,12 @@ export class FormManager {
         const content = container.querySelector(".group-content");
         const icon = btn.querySelector(".fa-chevron-down");
 
+        // Toggle
         const isClosed = content.classList.contains("max-h-0");
 
         if (isClosed) {
-          // ABRIR
           content.classList.remove("max-h-0", "opacity-0", "overflow-hidden");
-          content.classList.add("max-h-[5000px]", "opacity-100", "pb-4");
+          content.classList.add("max-h-[5000px]", "opacity-100"); // Valor alto para permitir contenido
           icon.classList.add("rotate-180");
           btn.classList.add(
             "ring-2",
@@ -236,9 +234,8 @@ export class FormManager {
             "border-indigo-200"
           );
         } else {
-          // CERRAR
           content.classList.add("max-h-0", "opacity-0", "overflow-hidden");
-          content.classList.remove("max-h-[5000px]", "opacity-100", "pb-4");
+          content.classList.remove("max-h-[5000px]", "opacity-100");
           icon.classList.remove("rotate-180");
           btn.classList.remove(
             "ring-2",
@@ -250,13 +247,11 @@ export class FormManager {
     });
   }
 
+  // ... handleFieldChange y getValidData se mantienen igual
   handleFieldChange(fieldId, newValue) {
     this.formData[fieldId] = newValue;
   }
 
-  /**
-   * Valida todos los campos. Si hay error, navega automáticamente al tab/acordeón.
-   */
   getValidData() {
     let isValid = true;
     const finalData = {};
@@ -272,7 +267,7 @@ export class FormManager {
       finalData[controller.def.id] = controller.getValue();
     });
 
-    // AUTO-ENFOQUE: Si hay error, ir al campo
+    // --- NUEVO: Si hay error, abrir el tab correspondiente ---
     if (!isValid && firstErrorController) {
       this.focusOnField(firstErrorController);
     }
@@ -281,7 +276,7 @@ export class FormManager {
   }
 
   /**
-   * Navega visualmente hacia el campo (cambia de tab o abre acordeón)
+   * Método para cambiar al tab donde está el campo (usado en validación)
    */
   focusOnField(controller) {
     if (!controller.domElement) return;
@@ -301,21 +296,15 @@ export class FormManager {
       const accordionBtn = groupContainer.querySelector(".accordion-trigger");
       if (accordionBtn) {
         const content = groupContainer.querySelector(".group-content");
-        // Si está cerrado (max-h-0), simular click para abrir
         if (content.classList.contains("max-h-0")) accordionBtn.click();
       }
 
-      // 3. Scroll suave hacia el campo (con pequeño delay para que la UI se expanda)
+      // 3. Scroll al campo
       setTimeout(() => {
         controller.domElement.scrollIntoView({
           behavior: "smooth",
           block: "center",
         });
-        // Opcional: Dar foco al input
-        const input = controller.domElement.querySelector(
-          "input, select, textarea"
-        );
-        if (input) input.focus();
       }, 300);
     }
   }

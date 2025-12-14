@@ -253,6 +253,7 @@ export class TemplateForm {
       const emptyLabels = fields.filter(
         (f) => !f.label.trim() && f.type !== "separator"
       );
+      console.log("*** ", { emptyLabels });
       if (emptyLabels.length > 0) {
         throw new Error("Hay campos sin etiqueta. Por favor, nómbralos.");
       }
