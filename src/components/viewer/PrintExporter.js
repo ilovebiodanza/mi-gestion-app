@@ -252,7 +252,7 @@ function generatePrintHtml(
 function renderPrintTable(field, rows, currencyConfig, isCompact) {
   if (!Array.isArray(rows) || rows.length === 0) {
     if (isCompact) return "";
-    return `<div class="p-4 border border-dashed border-slate-200 rounded-xl bg-slate-50 text-center text-xs text-slate-400 flex flex-col items-center gap-2"><i class="fas fa-table text-xl opacity-20"></i>Tabla vacía</div>`;
+    return `<div class="p-4 border border-dashed border-slate-200 rounded-xl bg-slate-50 text-center text-xs text-slate-400 flex flex-col items-center gap-2"><i class="fas fa-table text-xl opacity-20"></i>${field.label} (Tabla vacía)</div>`;
   }
 
   const padding = isCompact ? "px-2 py-1" : "px-4 py-2";
