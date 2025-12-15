@@ -18,6 +18,9 @@ export function renderMainLayout(isEditing, initialData, fieldsHtml = "") {
     { value: "education", label: "Formación" },
   ];
 
+  // [NUEVO] Opciones de Seguridad
+  const securityLevel = initialData?.securityLevel || "high";
+
   const currentCategory = initialData?.settings?.category || "custom";
   const initialIcon = initialData?.icon || "📋";
   const initialColor = initialData?.color || "#4F46E5";
@@ -89,6 +92,57 @@ export function renderMainLayout(isEditing, initialData, fieldsHtml = "") {
                                     .join("")}
                               </select>
                               <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-slate-400"><i class="fas fa-chevron-down text-xs"></i></div>
+                          </div>
+                      </div>
+
+                      <div class="md:col-span-12">
+                          <label class="block text-xs font-bold text-slate-400 uppercase mb-2 ml-1">Nivel de Seguridad</label>
+                          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                              
+                              <label class="relative flex p-4 cursor-pointer rounded-xl border transition-all hover:bg-slate-50 ${
+                                securityLevel === "high"
+                                  ? "border-indigo-500 bg-indigo-50/50 ring-1 ring-indigo-500"
+                                  : "border-slate-200"
+                              }">
+                                  <input type="radio" name="securityLevel" value="high" class="peer sr-only" ${
+                                    securityLevel === "high" ? "checked" : ""
+                                  }>
+                                  <div class="flex items-start gap-3">
+                                      <div class="w-10 h-10 rounded-lg bg-indigo-100 text-indigo-600 flex items-center justify-center flex-shrink-0">
+                                          <i class="fas fa-shield-halved text-xl"></i>
+                                      </div>
+                                      <div>
+                                          <span class="block text-sm font-bold text-slate-700">Máxima (Bóveda)</span>
+                                          <span class="block text-xs text-slate-500 mt-1">Requiere contraseña maestra para ver/editar. Ideal para tarjetas, contraseñas, documentos legales.</span>
+                                      </div>
+                                      <div class="ml-auto absolute top-4 right-4 opacity-0 peer-checked:opacity-100 text-indigo-600">
+                                          <i class="fas fa-check-circle"></i>
+                                      </div>
+                                  </div>
+                              </label>
+
+                              <label class="relative flex p-4 cursor-pointer rounded-xl border transition-all hover:bg-slate-50 ${
+                                securityLevel === "medium"
+                                  ? "border-emerald-500 bg-emerald-50/50 ring-1 ring-emerald-500"
+                                  : "border-slate-200"
+                              }">
+                                  <input type="radio" name="securityLevel" value="medium" class="peer sr-only" ${
+                                    securityLevel === "medium" ? "checked" : ""
+                                  }>
+                                  <div class="flex items-start gap-3">
+                                      <div class="w-10 h-10 rounded-lg bg-emerald-100 text-emerald-600 flex items-center justify-center flex-shrink-0">
+                                          <i class="fas fa-user-shield text-xl"></i>
+                                      </div>
+                                      <div>
+                                          <span class="block text-sm font-bold text-slate-700">Media (Acceso Rápido)</span>
+                                          <span class="block text-xs text-slate-500 mt-1">Accesible con tu Login. <b>Compatible con Gemini</b>. Ideal para listas, bitácoras, recibos.</span>
+                                      </div>
+                                      <div class="ml-auto absolute top-4 right-4 opacity-0 peer-checked:opacity-100 text-emerald-600">
+                                          <i class="fas fa-check-circle"></i>
+                                      </div>
+                                  </div>
+                              </label>
+
                           </div>
                       </div>
 
