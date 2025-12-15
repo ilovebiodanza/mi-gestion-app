@@ -21,7 +21,6 @@ export class DocumentEditor {
     this.isSubmitting = false;
     this.formManager = null;
 
-    // Aseguramos que los campos estén registrados (Texto, Número, Tabla, etc.)
     registerCoreFields();
 
     if (this.isEditing && !this.template) {
@@ -34,9 +33,7 @@ export class DocumentEditor {
       if (window.app && window.app.requireEncryption) {
         window.app.requireEncryption(() => this.loadExistingDocument());
       } else {
-        this.renderError(
-          "Sistema de seguridad no disponible. Recarga la página."
-        );
+        this.renderError("Seguridad no inicializada. Recarga la página.");
       }
     } else {
       this.loadExistingDocument();
@@ -44,27 +41,28 @@ export class DocumentEditor {
   }
 
   async loadExistingDocument() {
-    try {
-      document.getElementById("editorContainer").innerHTML = `
-        <div class="flex flex-col items-center justify-center py-12">
-            <i class="fas fa-circle-notch fa-spin text-4xl text-indigo-500 mb-4"></i>
-            <p class="text-slate-500 animate-pulse">Descifrando documento...</p>
+    const container = document.getElementById("editorContainer");
+    if (container) {
+      container.innerHTML = `
+        <div class="flex flex-col items-center justify-center py-20">
+            <div class="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-brand-600 mb-4"></div>
+            <p class="text-slate-500 font-medium">Descifrando información segura...</p>
         </div>`;
+    }
 
+    try {
       const docData = await documentService.getById(this.documentId);
-
       this.template = docData.template;
       this.initialFormData = docData.data;
       this.documentMetadata = {
         title: docData.title,
         tags: docData.tags || [],
       };
-
       this.render();
       this.setupEventListeners();
     } catch (error) {
-      console.error("Error cargando documento:", error);
-      this.renderError("No se pudo cargar o descifrar el documento.");
+      console.error("Error cargando:", error);
+      this.renderError("No se pudo acceder al documento cifrado.");
     }
   }
 
@@ -78,76 +76,74 @@ export class DocumentEditor {
     );
 
     const initialTitle = this.documentMetadata.title || "";
-    const color = this.template.color || "#6366f1";
-
-    // Icono
+    // Usamos el color de la plantilla o el brand por defecto
+    const accentColor = this.template.color || "#3b82f6";
     const iconVal = this.template.icon || "📄";
+
+    // Renderizado del icono
     const isFontAwesome = iconVal.includes("fa-") || iconVal.includes("fa ");
+    const iconHtml = isFontAwesome
+      ? `<i class="${iconVal} text-2xl"></i>`
+      : `<span class="text-2xl">${iconVal}</span>`;
 
-    let iconHtml;
-    if (isFontAwesome) {
-      iconHtml = `<i class="fas ${iconVal} text-3xl"></i>`;
-    } else {
-      iconHtml = `<span class="text-3xl leading-none select-none">${iconVal}</span>`;
-    }
-
-    // --- CAMBIO: HTML Limpio sin clases 'print:' ---
+    // --- DISEÑO TIPO "PAPEL" ---
     const htmlContent = `
-      <div class="max-w-5xl mx-auto bg-white rounded-3xl shadow-xl overflow-hidden animate-fade-in-up">
+      <div class="max-w-4xl mx-auto bg-white rounded-xl shadow-card border border-slate-200 overflow-hidden animate-slide-up relative flex flex-col min-h-[600px]">
         
-        <div class="px-6 py-6 bg-slate-50 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-center sticky top-0 z-20 backdrop-blur-md bg-opacity-90 gap-4">
+        <div class="px-6 py-4 bg-white border-b border-slate-100 flex flex-col sm:flex-row justify-between items-center sticky top-0 z-30 gap-4 shadow-sm">
           
-          <div class="flex items-center gap-5 w-full sm:w-auto flex-1 overflow-hidden">
-            <div class="w-16 h-16 rounded-2xl flex items-center justify-center shadow-sm flex-shrink-0 transition-transform hover:scale-105"
-                 style="background-color: ${color}15; color: ${color}">
+          <div class="flex items-center gap-4 w-full sm:w-auto flex-1">
+            <div class="w-12 h-12 rounded-lg flex items-center justify-center shadow-sm border border-slate-100 flex-shrink-0"
+                 style="background-color: ${accentColor}10; color: ${accentColor}">
               ${iconHtml}
             </div>
             
-            <div class="flex-1 w-full min-w-0">
+            <div class="flex-1 min-w-0">
               <div class="flex items-center gap-2 mb-1">
-                 <span class="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full bg-slate-200 text-slate-500">
+                 <span class="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-slate-100 text-slate-500 border border-slate-200">
                     ${this.template.name}
                  </span>
                  ${
                    this.isEditing
-                     ? '<span class="text-[10px] text-amber-500 font-bold"><i class="fas fa-pencil-alt"></i> Editando</span>'
-                     : '<span class="text-[10px] text-emerald-500 font-bold"><i class="fas fa-plus"></i> Nuevo</span>'
+                     ? '<span class="flex items-center gap-1 text-[10px] text-amber-600 font-bold bg-amber-50 px-2 py-0.5 rounded border border-amber-100"><i class="fas fa-pen"></i> Editando</span>'
+                     : '<span class="flex items-center gap-1 text-[10px] text-emerald-600 font-bold bg-emerald-50 px-2 py-0.5 rounded border border-emerald-100"><i class="fas fa-star"></i> Nuevo</span>'
                  }
               </div>
               
-              <div class="relative group">
-                <input type="text" id="docTitleInput" 
-                  class="w-full bg-transparent border-none p-0 text-2xl font-bold text-slate-800 placeholder-slate-300 focus:ring-0 focus:outline-none transition-colors truncate group-hover:bg-white/50 rounded-lg" 
+              <input type="text" id="docTitleInput" 
+                  class="w-full bg-transparent border-0 border-b border-transparent hover:border-slate-200 focus:border-brand-500 p-0 text-xl font-bold text-slate-900 placeholder-slate-300 focus:ring-0 transition-all truncate" 
                   value="${initialTitle}" 
-                  placeholder="Escribe la identificación..." 
+                  placeholder="Título del documento..." 
                   autocomplete="off"
                   required autofocus>
-                <i class="fas fa-pen text-slate-300 absolute right-0 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none text-sm"></i>
-              </div>
             </div>
           </div>
 
-          <div class="flex gap-3 w-full sm:w-auto justify-end sm:pl-4">
-             <button id="cancelEditBtn" class="px-4 py-2.5 rounded-xl text-slate-500 font-bold hover:bg-slate-100 transition-all text-xs uppercase tracking-wide">
+          <div class="flex gap-3 w-full sm:w-auto justify-end">
+             <button id="cancelEditBtn" class="px-4 py-2 rounded-lg text-slate-600 font-medium hover:bg-slate-50 border border-transparent hover:border-slate-200 transition-all text-sm">
                Cancelar
              </button>
-             <button id="saveDocBtn" class="px-6 py-2.5 rounded-xl bg-indigo-600 text-white font-bold shadow-lg hover:bg-indigo-700 hover:shadow-indigo-500/30 transition-all flex items-center text-sm transform active:scale-95">
-               <i class="fas fa-save mr-2"></i> ${
-                 this.isEditing ? "Actualizar" : "Guardar"
-               }
+             <button id="saveDocBtn" class="px-5 py-2 rounded-lg bg-brand-600 text-white font-semibold shadow-md hover:bg-brand-700 hover:shadow-lg transition-all flex items-center gap-2 text-sm disabled:opacity-70 disabled:cursor-wait">
+               <i class="fas fa-save"></i> 
+               <span>${this.isEditing ? "Guardar Cambios" : "Guardar"}</span>
              </button>
           </div>
         </div>
 
-        <div class="p-8">
+        <div class="p-6 sm:p-10 bg-white">
           <input type="hidden" id="docTagsInput" value="${(
             this.documentMetadata.tags || []
           ).join(", ")}">
-
-          <form id="dynamicForm" class="grid grid-cols-1 md:grid-cols-2 gap-6 animate-fade-in">
+          
+          <form id="dynamicForm" class="grid grid-cols-1 gap-8 animate-fade-in">
              ${this.formManager.renderHtml()}
           </form>
-
+        </div>
+        
+        <div class="bg-slate-50 px-6 py-3 border-t border-slate-100 text-center">
+             <p class="text-[10px] text-slate-400 font-mono">
+                <i class="fas fa-lock text-emerald-500 mr-1"></i> Contenido cifrado de extremo a extremo antes de guardar.
+             </p>
         </div>
       </div>
     `;
@@ -173,34 +169,33 @@ export class DocumentEditor {
     if (this.isSubmitting) return;
 
     const titleInput = document.getElementById("docTitleInput");
-    const tagsInput = document.getElementById("docTagsInput");
-
     const title = titleInput.value.trim();
     if (!title) {
-      alert(
-        "Por favor, escribe una identificación para este registro en el encabezado."
-      );
+      // Feedback visual en el input
+      titleInput.classList.add("border-red-500", "animate-pulse");
       titleInput.focus();
+      setTimeout(
+        () => titleInput.classList.remove("border-red-500", "animate-pulse"),
+        2000
+      );
       return;
     }
 
     const formData = this.formManager.getValidData();
     if (!formData) {
-      alert(
-        "Hay errores en el formulario. Por favor revisa los campos marcados."
-      );
+      alert("Por favor corrige los errores marcados en el formulario.");
       return;
     }
 
-    let tags = [];
-    if (tagsInput) {
-      tags = tagsInput.value
-        .split(",")
-        .map((t) => t.trim())
-        .filter((t) => t);
-    }
+    const tagsInput = document.getElementById("docTagsInput");
+    let tags = tagsInput
+      ? tagsInput.value
+          .split(",")
+          .map((t) => t.trim())
+          .filter((t) => t)
+      : [];
 
-    this.updateEditorState(true, "Cifrando y guardando...");
+    this.updateEditorState(true, "Cifrando...");
 
     try {
       const documentPayload = {
@@ -212,29 +207,21 @@ export class DocumentEditor {
         updatedAt: new Date().toISOString(),
       };
 
-      // --- CAMBIO CLAVE: Capturar el resultado para obtener el ID ---
       let savedDoc = null;
-
       if (this.isEditing) {
-        // update devuelve { id: docId, ... }
         savedDoc = await documentService.update(
           this.documentId,
           documentPayload
         );
       } else {
-        // create devuelve documentData que incluye { id: ... }
         savedDoc = await documentService.create(documentPayload);
       }
 
-      // Pasamos el ID al callback para que app.js redirija al Visor
-      if (savedDoc && savedDoc.id) {
-        this.onSaveSuccess(savedDoc.id);
-      } else {
-        // Fallback por si acaso
-        this.onSaveSuccess();
-      }
+      // Éxito -> Navegamos
+      if (savedDoc && savedDoc.id) this.onSaveSuccess(savedDoc.id);
+      else this.onSaveSuccess();
     } catch (error) {
-      console.error("Error guardando:", error);
+      console.error("Error save:", error);
       alert("Error al guardar: " + error.message);
       this.updateEditorState(false);
     }
@@ -247,14 +234,12 @@ export class DocumentEditor {
 
     if (isLoading) {
       btn.disabled = true;
-      btn.innerHTML = `<i class="fas fa-circle-notch fa-spin mr-2"></i> ${message}`;
-      btn.classList.add("opacity-75", "cursor-wait");
+      btn.innerHTML = `<i class="fas fa-circle-notch fa-spin"></i> ${message}`;
     } else {
       btn.disabled = false;
-      const icon = this.isEditing ? "fa-sync-alt" : "fa-save";
-      const text = this.isEditing ? "Actualizar" : "Guardar";
-      btn.innerHTML = `<i class="fas ${icon} mr-2"></i> ${text}`;
-      btn.classList.remove("opacity-75", "cursor-wait");
+      btn.innerHTML = this.isEditing
+        ? `<i class="fas fa-save"></i> Guardar Cambios`
+        : `<i class="fas fa-save"></i> Guardar`;
     }
   }
 
@@ -262,14 +247,16 @@ export class DocumentEditor {
     const container = document.getElementById("editorContainer");
     if (container) {
       container.innerHTML = `
-            <div class="p-8 text-center bg-white rounded-3xl border border-red-100 shadow-xl max-w-2xl mx-auto mt-10">
-                <h3 class="text-xl font-bold text-slate-800 mb-2">Algo salió mal</h3>
+            <div class="p-8 text-center max-w-lg mx-auto mt-10">
+                <div class="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-4 text-red-500">
+                    <i class="fas fa-times"></i>
+                </div>
+                <h3 class="text-lg font-bold text-slate-900 mb-2">Error</h3>
                 <p class="text-slate-500 mb-6">${msg}</p>
-                <button onclick="window.location.reload()" class="px-6 py-2 bg-slate-800 text-white rounded-lg hover:bg-slate-900 transition">
-                    Recargar Página
+                <button onclick="window.location.reload()" class="px-4 py-2 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition text-sm font-medium">
+                    Recargar
                 </button>
-            </div>
-        `;
+            </div>`;
     }
   }
 }

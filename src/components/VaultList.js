@@ -8,32 +8,29 @@ import { formatBytes } from "../utils/helpers.js";
 export class VaultList {
   constructor(onViewDocument, onNewDocument) {
     this.onViewDocument = onViewDocument;
-
-    // Estado interno para filtros
     this.documents = [];
-    this.activeFilter = "all"; // 'all' | 'Nombre de Plantilla'
+    this.activeFilter = "all";
 
-    // --- LÓGICA INTERCEPTADA (Setup Inicial) ---
+    // Interceptor para Setup de Bóveda
     this.onNewDocument = async () => {
       try {
         const isConfigured = await authService.isVaultConfigured();
-
         if (!isConfigured) {
           const setupModal = new VaultSetupModal(() => onNewDocument());
           setupModal.show();
         } else {
+          // Lógica de encriptación global (window.app)
           if (window.app && window.app.requireEncryption) {
             window.app.requireEncryption(() => onNewDocument());
+          } else if (!encryptionService.isReady()) {
+            // Fallback si window.app no está listo
+            alert("Por favor recarga la página para inicializar seguridad.");
           } else {
-            if (!encryptionService.isReady()) {
-              window.app.requireEncryption(() => onNewDocument());
-            } else {
-              onNewDocument();
-            }
+            onNewDocument();
           }
         }
       } catch (error) {
-        console.error("Error al verificar estado de bóveda:", error);
+        console.error("Vault check error:", error);
         onNewDocument();
       }
     };
@@ -43,21 +40,21 @@ export class VaultList {
     const container = document.getElementById("vaultListContainer");
     if (!container) return;
 
-    // Skeleton Loader
+    // Skeleton más sutil y profesional
     container.innerHTML = `
       <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
         ${[1, 2, 3]
           .map(
             () => `
-          <div class="bg-white rounded-3xl p-5 shadow-sm border border-slate-100 h-32 animate-pulse flex flex-col justify-between">
-            <div class="flex items-center gap-4">
-               <div class="w-12 h-12 bg-slate-200 rounded-xl flex-shrink-0"></div>
-               <div class="flex-1 space-y-2">
-                 <div class="h-4 bg-slate-200 rounded w-3/4"></div>
-                 <div class="h-3 bg-slate-200 rounded w-1/3"></div>
-               </div>
+          <div class="bg-white rounded-xl p-6 border border-slate-200 h-40 animate-pulse flex flex-col justify-between">
+            <div class="flex items-start justify-between">
+               <div class="w-10 h-10 bg-slate-100 rounded-lg"></div>
+               <div class="w-20 h-4 bg-slate-100 rounded"></div>
             </div>
-            <div class="h-6 bg-slate-100 rounded-lg w-full mt-2"></div>
+            <div class="space-y-3">
+               <div class="h-4 bg-slate-100 rounded w-3/4"></div>
+               <div class="h-3 bg-slate-100 rounded w-1/2"></div>
+            </div>
           </div>
         `
           )
@@ -65,98 +62,87 @@ export class VaultList {
       </div>`;
 
     try {
-      // 1. Cargar datos Y estadísticas en paralelo
       const [documents, stats] = await Promise.all([
         documentService.listDocuments(),
         documentService.getStorageStats(),
       ]);
-      this.documents = await documentService.listDocuments();
+      this.documents = documents;
 
-      // 2. Preparar Layout (Agregamos el contenedor del Widget de Storage)
       container.innerHTML = `
-        <div class="flex flex-col md:flex-row justify-between items-end md:items-center mb-6 gap-4 animate-fade-in">
+        <div class="flex flex-col-reverse md:flex-row justify-between items-start md:items-center mb-8 gap-6 animate-fade-in">
              <div id="vaultFiltersContainer" class="flex flex-wrap items-center gap-2"></div>
              <div id="vaultStorageWidget" class="w-full md:w-auto"></div>
         </div>
-        <div id="vaultGridContainer" class="animate-fade-in-up"></div>
+        <div id="vaultGridContainer" class="animate-slide-up"></div>
       `;
 
-      // 3. Renderizar componentes
       this.renderStorageWidget(stats);
       this.renderFilters();
       this.renderGrid();
     } catch (error) {
-      console.error("Error cargando bóveda:", error);
+      console.error("Error VaultList:", error);
       this.renderErrorState(container);
     }
   }
 
-  /**
-   * Renderiza el widget de control de espacio
-   */
   renderStorageWidget(stats) {
     const container = document.getElementById("vaultStorageWidget");
     if (!container) return;
 
-    // Definimos un límite teórico para la barra de progreso (ej: 50MB para la versión gratuita)
-    // Esto es visual para que el usuario tenga una referencia.
-    const STORAGE_LIMIT = 50 * 1024 * 1024; // 50 MB
+    // Límite visual de 50MB
+    const STORAGE_LIMIT = 50 * 1024 * 1024;
     const percentage = Math.min(
       (stats.bytes / STORAGE_LIMIT) * 100,
       100
     ).toFixed(1);
 
-    // Color de la barra según uso
-    let progressColor = "bg-indigo-500";
-    if (percentage > 70) progressColor = "bg-amber-500";
-    if (percentage > 90) progressColor = "bg-red-500";
+    // Colores basados en el estado
+    let progressColor = "bg-brand-600";
+    let textColor = "text-brand-700";
+    if (percentage > 75) {
+      progressColor = "bg-amber-500";
+      textColor = "text-amber-700";
+    }
+    if (percentage > 90) {
+      progressColor = "bg-red-500";
+      textColor = "text-red-700";
+    }
 
     container.innerHTML = `
-      <div class="bg-white border border-slate-200 rounded-2xl p-3 shadow-sm flex items-center gap-4 min-w-[240px]">
-          <div class="w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center text-slate-400">
-              <i class="fas fa-database"></i>
+      <div class="bg-white border border-slate-200 rounded-xl p-4 shadow-sm flex items-center gap-4 min-w-[260px]">
+          <div class="w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center text-slate-400 border border-slate-100">
+              <i class="fas fa-server"></i>
           </div>
           <div class="flex-1">
-              <div class="flex justify-between items-center mb-1">
-                  <span class="text-xs font-bold text-slate-500 uppercase tracking-wider">Almacenamiento</span>
-                  <span class="text-xs font-bold text-slate-700">${formatBytes(
-                    stats.bytes
-                  )}</span>
+              <div class="flex justify-between items-end mb-2">
+                  <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Uso de Bóveda</span>
+                  <span class="text-xs font-bold ${textColor}">${formatBytes(
+      stats.bytes
+    )}</span>
               </div>
-              <div class="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
-                  <div class="${progressColor} h-2 rounded-full transition-all duration-1000" style="width: ${percentage}%"></div>
+              <div class="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                  <div class="${progressColor} h-1.5 rounded-full transition-all duration-1000" style="width: ${percentage}%"></div>
               </div>
-              <p class="text-[10px] text-slate-400 mt-1 text-right">
-                ${stats.count} documento(s) cifrado(s)
-              </p>
           </div>
       </div>
     `;
   }
 
-  /**
-   * Genera los botones de filtrado basados en las plantillas existentes
-   */
   renderFilters() {
     const filterContainer = document.getElementById("vaultFiltersContainer");
-    if (!filterContainer) return;
-
-    if (this.documents.length === 0) {
-      filterContainer.innerHTML = "";
+    if (!filterContainer || this.documents.length === 0) {
+      if (filterContainer) filterContainer.innerHTML = "";
       return;
     }
 
-    // 1. Calcular estadísticas (agrupar por nombre de plantilla)
     const stats = this.documents.reduce((acc, doc) => {
-      const name = doc.templateName || "Sin Plantilla";
+      const name = doc.templateName || "General";
       acc[name] = (acc[name] || 0) + 1;
       return acc;
     }, {});
 
-    // 2. Ordenar alfabéticamente
-    const templateNames = Object.keys(stats).sort((a, b) => a.localeCompare(b));
+    const templateNames = Object.keys(stats).sort();
 
-    // 3. Construir lista de filtros
     const filters = [
       { id: "all", label: "Todos", count: this.documents.length },
       ...templateNames.map((name) => ({
@@ -166,127 +152,98 @@ export class VaultList {
       })),
     ];
 
-    // 4. Renderizar botones
     filterContainer.innerHTML = filters
       .map((f) => {
         const isActive = this.activeFilter === f.id;
-        // Estilos: Activo (Oscuro/Brand) vs Inactivo (Blanco/Gris)
         const btnClass = isActive
-          ? "bg-slate-800 text-white shadow-lg shadow-slate-500/30 ring-2 ring-slate-800 ring-offset-2 transform scale-105"
-          : "bg-white text-slate-600 hover:bg-slate-50 border border-slate-200 hover:border-slate-300 hover:shadow-sm";
-
-        const countClass = isActive
-          ? "bg-white/20 text-white"
-          : "bg-slate-100 text-slate-400";
+          ? "bg-slate-800 text-white shadow-md border border-slate-800"
+          : "bg-white text-slate-600 hover:bg-slate-50 border border-slate-200 hover:border-slate-300";
 
         return `
           <button type="button" 
-              class="filter-btn px-4 py-2 rounded-full text-sm font-bold transition-all duration-200 whitespace-nowrap flex items-center gap-2 ${btnClass}"
+              class="filter-btn px-4 py-1.5 rounded-full text-xs font-semibold transition-all duration-200 whitespace-nowrap flex items-center gap-2 ${btnClass}"
               data-filter="${f.id}">
-              <span>${f.label}</span>
-              <span class="px-1.5 py-0.5 rounded-md text-[10px] ${countClass}">${f.count}</span>
+              ${f.label}
+              <span class="opacity-60 text-[10px]">(${f.count})</span>
           </button>
         `;
       })
       .join("");
 
-    // 5. Listeners
     filterContainer.querySelectorAll(".filter-btn").forEach((btn) => {
       btn.addEventListener("click", () => {
         this.activeFilter = btn.dataset.filter;
-        this.renderFilters(); // Re-renderizar para actualizar estilos activo/inactivo
-        this.renderGrid(); // Filtrar documentos
+        this.renderFilters();
+        this.renderGrid();
       });
     });
   }
 
-  /**
-   * Renderiza la cuadrícula de tarjetas según el filtro activo
-   */
   renderGrid() {
     const gridContainer = document.getElementById("vaultGridContainer");
     if (!gridContainer) return;
 
-    // 1. Filtrar
     let displayDocs = this.documents;
     if (this.activeFilter !== "all") {
       displayDocs = this.documents.filter(
-        (d) => (d.templateName || "Sin Plantilla") === this.activeFilter
+        (d) => (d.templateName || "General") === this.activeFilter
       );
     }
 
-    // 2. Estado Vacío (Total o Parcial)
     if (displayDocs.length === 0) {
-      if (this.documents.length === 0) {
-        this.renderEmptyStateTotal(gridContainer); // Bóveda vacía (sin documentos)
-      } else {
-        // Bóveda con documentos, pero ninguno coincide con el filtro (raro, pero posible)
-        gridContainer.innerHTML = `
-                <div class="flex flex-col items-center justify-center py-16 text-slate-400">
-                    <i class="fas fa-search text-3xl mb-3 opacity-20"></i>
-                    <p>No hay documentos en esta categoría.</p>
-                </div>`;
-      }
+      if (this.documents.length === 0)
+        this.renderEmptyStateTotal(gridContainer);
+      else
+        gridContainer.innerHTML = `<div class="text-center py-12 text-slate-400">No hay documentos en este filtro.</div>`;
       return;
     }
 
-    // 3. Renderizar Grid
     gridContainer.innerHTML = `
-      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 pb-20">
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 pb-12">
         ${displayDocs.map((doc) => this.renderCardHtml(doc)).join("")}
       </div>
     `;
 
-    // 4. Listeners de Click en Tarjetas
     gridContainer.querySelectorAll(".doc-card").forEach((card) => {
-      card.addEventListener("click", () => {
-        this.onViewDocument(card.dataset.id);
-      });
+      card.addEventListener("click", () =>
+        this.onViewDocument(card.dataset.id)
+      );
     });
   }
 
-  /**
-   * Genera el HTML de una tarjeta individual
-   */
   renderCardHtml(doc) {
-    const color = doc.color || "#4f46e5";
-    const icon = doc.icon || "📋";
-    const title = doc.title || "Sin título";
-    const templateName = doc.templateName || "Documento";
-    const date = new Date(doc.updatedAt).toLocaleDateString();
+    // Usamos el color guardado o un fallback neutro
+    const color = doc.color || "#64748b";
+    const icon = doc.icon || "📄";
+    const title = doc.title || "Documento sin título";
+    const templateName = doc.templateName || "Archivo";
+    const date = new Date(doc.updatedAt).toLocaleDateString("es-ES", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    });
 
+    // Diseño de tarjeta limpio "Apple Style"
     return `
-      <div class="doc-card group relative bg-white hover:bg-slate-50 rounded-3xl p-5 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 border border-slate-100 cursor-pointer overflow-hidden" data-id="${doc.id}">
-          
-          <div class="absolute top-0 left-0 w-full h-1.5" style="background-color: ${color}"></div>
-          
-          <div class="absolute top-5 right-5 text-slate-300 group-hover:text-slate-500 transition-colors">
-              <i class="fas fa-chevron-right text-xs"></i>
-          </div>
-
-          <div class="flex items-center gap-4 mb-4 pr-6">
-              <div class="flex-shrink-0 flex items-center justify-center w-12 h-12 rounded-2xl text-xl shadow-sm transition-transform duration-300 group-hover:scale-110"
-                   style="background-color: ${color}15; color: ${color}">
+      <div class="doc-card group bg-white hover:bg-slate-50 rounded-xl p-5 border border-slate-200 shadow-sm hover:shadow-card hover:border-slate-300 transition-all duration-200 cursor-pointer relative overflow-hidden" data-id="${doc.id}">
+          <div class="flex items-start justify-between mb-4">
+              <div class="w-10 h-10 rounded-lg flex items-center justify-center text-xl bg-slate-50 border border-slate-100 group-hover:scale-110 transition-transform">
                   ${icon}
               </div>
-              
-              <div class="flex-1 min-w-0">
-                  <h3 class="text-base font-bold text-slate-800 truncate leading-tight group-hover:text-slate-900 transition-colors mb-1">
-                      ${title}
-                  </h3>
-                  <span class="inline-block px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wide border border-slate-100 bg-white text-slate-500 shadow-sm truncate max-w-full">
-                      ${templateName}
-                  </span>
+              <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wider bg-slate-50 px-2 py-1 rounded border border-slate-100">
+                  ${templateName}
               </div>
           </div>
+          
+          <div class="mb-4">
+              <h3 class="text-sm font-bold text-slate-800 line-clamp-2 leading-snug group-hover:text-brand-600 transition-colors">
+                  ${title}
+              </h3>
+          </div>
 
-          <div class="flex items-center justify-between text-xs text-slate-400 pt-3 border-t border-slate-100">
-              <div class="flex items-center gap-1.5 truncate">
-                  <i class="far fa-clock"></i> <span>${date}</span>
-              </div>
-              <div class="flex items-center gap-1 text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full font-medium flex-shrink-0">
-                  <i class="fas fa-lock text-[10px]"></i> <span>E2EE</span>
-              </div>
+          <div class="flex items-center justify-between pt-3 border-t border-slate-100">
+              <span class="text-[10px] text-slate-400 font-medium">${date}</span>
+              <i class="fas fa-lock text-[10px] text-emerald-500 opacity-0 group-hover:opacity-100 transition-opacity" title="E2EE Protegido"></i>
           </div>
       </div>
     `;
@@ -294,14 +251,14 @@ export class VaultList {
 
   renderEmptyStateTotal(container) {
     container.innerHTML = `
-        <div class="text-center py-16 px-4">
-          <div class="inline-block p-6 rounded-full bg-slate-50 mb-4 animate-fade-in-up">
-            <i class="fas fa-folder-open text-4xl text-slate-300"></i>
+        <div class="flex flex-col items-center justify-center py-16 text-center border-2 border-dashed border-slate-200 rounded-2xl bg-slate-50/50">
+          <div class="w-16 h-16 bg-white rounded-full flex items-center justify-center shadow-sm mb-4">
+            <i class="fas fa-safe text-2xl text-slate-300"></i>
           </div>
-          <h3 class="text-lg font-bold text-slate-700">Tu bóveda está vacía</h3>
-          <p class="text-slate-500 max-w-xs mx-auto mt-2 mb-6">Comienza a proteger tu información importante hoy mismo.</p>
-          <button id="btnEmptyStateNew" class="px-6 py-2 bg-primary text-white rounded-xl shadow-lg hover:bg-primary-hover transition font-bold">
-            Crear primer documento
+          <h3 class="text-slate-900 font-semibold mb-1">Tu bóveda está vacía</h3>
+          <p class="text-slate-500 text-sm max-w-xs mb-6">Crea tu primer documento encriptado para comenzar a asegurar tu información.</p>
+          <button id="btnEmptyStateNew" class="px-5 py-2 bg-white text-slate-700 border border-slate-300 hover:border-brand-500 hover:text-brand-600 rounded-lg shadow-sm transition-all text-sm font-medium">
+            Comenzar ahora
           </button>
         </div>`;
 
@@ -312,10 +269,8 @@ export class VaultList {
 
   renderErrorState(container) {
     container.innerHTML = `
-        <div class="text-center py-12 bg-red-50 rounded-2xl border border-red-100">
-          <div class="inline-flex bg-red-100 p-3 rounded-full text-red-500 mb-3"><i class="fas fa-exclamation-triangle"></i></div>
-          <p class="text-red-600 font-medium">No se pudieron cargar los documentos.</p>
-          <button id="retryBtn" class="mt-4 text-sm text-red-700 underline hover:text-red-900">Reintentar</button>
+        <div class="p-4 bg-red-50 text-red-600 rounded-lg text-center text-sm border border-red-100">
+          Error cargando documentos. <button id="retryBtn" class="underline font-bold">Reintentar</button>
         </div>`;
     document
       .getElementById("retryBtn")

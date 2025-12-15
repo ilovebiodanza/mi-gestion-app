@@ -1,18 +1,28 @@
 #!/bin/bash
 
-echo "🚀 Iniciando despliegue en GitHub Pages..."
+# Detener el script si cualquier comando falla
+set -e
 
-# Construir proyecto
-echo "📦 Construyendo proyecto..."
+echo "🚀 Iniciando despliegue seguro..."
+
+# 1. Construir proyecto (Vite)
+echo "📦 Construyendo versión de producción..."
 npm run build
 
-# Ofuscar código
-echo "🔒 Ofuscando código..."
+# 2. Ofuscar código (Protección)
+echo "🔒 Aplicando ofuscación de código..."
 npm run obfuscate
 
-# Desplegar usando gh-pages
-echo "🚀 Desplegando en GitHub Pages..."
-npx gh-pages -d dist -t true
+# 3. Validar existencia de dist
+if [ ! -d "dist" ]; then
+  echo "❌ Error: La carpeta dist no se generó."
+  exit 1
+fi
 
-echo "✅ Despliegue completado!"
-echo "🌐 URL: https://tu-usuario.github.io/mi-gestion-app/"
+# 4. Desplegar
+echo "☁️  Subiendo a GitHub Pages..."
+# CORRECCIÓN: Usamos -t sin argumentos (activa dotfiles automáticamente)
+npx gh-pages -d dist -t
+
+echo "✅ ¡Despliegue completado con éxito!"
+echo "🌐 URL: https://ilovebiodanza.github.io/mi-gestion-app/"

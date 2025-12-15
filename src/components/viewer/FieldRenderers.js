@@ -19,10 +19,13 @@ export function renderUrlField(value, isTableContext = false) {
       : text;
 
   // Recortar texto si es muy largo en tabla
+  /*
   const displayText =
     isTableContext && display.length > 25
       ? display.substring(0, 22) + "..."
       : display;
+*/
+  const displayText = display;
 
   // --- LÓGICA DE MEDIOS (Audio / Imagen) ---
   if (mediaType === "audio" || mediaType === "image") {
@@ -131,6 +134,7 @@ export function renderSecret(value, isTableContext) {
 
 export function renderText(value, isTableContext) {
   if (isTableContext)
-    return value.length > 30 ? value.substring(0, 30) + "..." : value;
+    return `<span class="block truncate" title="${value}">${value}</span>`;
+  //    return value.length > 30 ? value.substring(0, 30) + "..." : value;
   return `<div class="prose prose-sm max-w-none text-slate-600 whitespace-pre-line">${value}</div>`;
 }

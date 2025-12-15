@@ -1,128 +1,106 @@
 // src/components/Toast.js
 
-export class ToastManager {
+class ToastManager {
   constructor() {
-    this.container = document.createElement("div");
-    // Posición fija en la esquina superior derecha, sin bloquear clics en el resto de la página
-    this.container.className =
-      "fixed top-4 right-4 z-[9999] flex flex-col gap-3 pointer-events-none";
-    document.body.appendChild(this.container);
+    this.container = null;
+    this.queue = [];
+    this.isShowing = false;
   }
 
-  /**
-   * Muestra una notificación toast
-   * @param {string|object} content - El mensaje de texto o un objeto de error
-   * @param {string} type - 'success', 'error', 'info', 'warning'
-   * @param {object} options - { duration: 3000, label: "Botón", onClick: fn }
-   */
-  show(content, type = "info", options = {}) {
-    // --- 1. Sanitización del Mensaje (FIX del error ReferenceError) ---
-    let messageText = "";
+  createContainer() {
+    if (document.getElementById("toast-container")) return;
 
-    if (typeof content === "string") {
-      messageText = content;
-    } else if (content && typeof content === "object") {
-      // Si recibimos un objeto (ej: Error de Firebase), extraemos lo útil
-      messageText =
-        content.message || content.code || "Ocurrió un error desconocido";
-      console.warn("⚠️ Toast recibió un objeto. Mostrando:", messageText);
-    } else {
-      messageText = "Notificación del sistema";
-    }
+    // Contenedor fijo en esquina inferior derecha (o superior centro en móvil)
+    const div = document.createElement("div");
+    div.id = "toast-container";
+    div.className =
+      "fixed bottom-6 right-6 z-[100] flex flex-col items-end gap-3 pointer-events-none sm:bottom-6 sm:right-6 top-4 right-4 sm:top-auto";
+    document.body.appendChild(div);
+    this.container = div;
+  }
 
-    // --- 2. Configuración Visual ---
+  show(message, type = "info", duration = 4000) {
+    this.createContainer();
+
+    // Configuración de estilos según tipo
     const styles = {
-      success: "bg-emerald-50 border-emerald-200 text-emerald-800",
-      error: "bg-red-50 border-red-200 text-red-800",
-      info: "bg-blue-50 border-blue-200 text-blue-800",
-      warning: "bg-amber-50 border-amber-200 text-amber-800",
+      success: {
+        icon: '<i class="fas fa-check-circle text-emerald-500 text-lg"></i>',
+        border: "border-emerald-500/20",
+        bg: "bg-white",
+      },
+      error: {
+        icon: '<i class="fas fa-times-circle text-red-500 text-lg"></i>',
+        border: "border-red-500/20",
+        bg: "bg-white", // Podría ser bg-red-50 pero white es más limpio
+      },
+      info: {
+        icon: '<i class="fas fa-info-circle text-brand-500 text-lg"></i>',
+        border: "border-brand-500/20",
+        bg: "bg-white",
+      },
+      warning: {
+        icon: '<i class="fas fa-exclamation-triangle text-amber-500 text-lg"></i>',
+        border: "border-amber-500/20",
+        bg: "bg-white",
+      },
     };
 
-    const icons = {
-      success: '<i class="fas fa-check-circle text-emerald-500 text-xl"></i>',
-      error: '<i class="fas fa-exclamation-circle text-red-500 text-xl"></i>',
-      info: '<i class="fas fa-info-circle text-blue-500 text-xl"></i>',
-      warning:
-        '<i class="fas fa-exclamation-triangle text-amber-500 text-xl"></i>',
-    };
+    const style = styles[type] || styles.info;
 
-    // --- 3. Crear el Elemento DOM ---
-    const toastEl = document.createElement("div");
-    // Clases base + animación + estilo específico
-    toastEl.className = `
-      ${styles[type] || styles.info} 
-      border shadow-lg rounded-xl p-4 pr-10 min-w-[300px] max-w-md 
-      flex items-start gap-4 pointer-events-auto 
-      transform transition-all duration-300 translate-x-full opacity-0
+    // Crear elemento Toast
+    const toast = document.createElement("div");
+    toast.className = `
+      pointer-events-auto 
+      flex items-center gap-3 
+      min-w-[300px] max-w-sm 
+      p-4 rounded-xl 
+      bg-white 
+      border ${style.border} 
+      shadow-lg shadow-slate-200/50 
+      transform translate-y-10 opacity-0 scale-95
+      transition-all duration-300 ease-out
     `;
 
-    // Contenido HTML interno
-    let actionHtml = "";
-    if (options.label && options.onClick) {
-      actionHtml = `
-        <button class="mt-2 text-xs font-bold uppercase tracking-wider underline hover:opacity-80 transition-opacity js-toast-action">
-          ${options.label}
-        </button>
-      `;
-    }
-
-    toastEl.innerHTML = `
-      <div class="flex-shrink-0 mt-0.5">${icons[type] || icons.info}</div>
-      <div class="flex-1">
-        <p class="text-sm font-medium leading-relaxed">${messageText}</p>
-        ${actionHtml}
+    toast.innerHTML = `
+      <div class="flex-shrink-0">
+        ${style.icon}
       </div>
-      <button class="absolute top-2 right-2 p-2 rounded-full hover:bg-black/5 transition-colors text-current opacity-50 hover:opacity-100 js-toast-close">
+      <div class="flex-1">
+        <p class="text-sm font-medium text-slate-700 leading-snug">${message}</p>
+      </div>
+      <button class="text-slate-400 hover:text-slate-600 transition-colors ml-2">
         <i class="fas fa-times text-xs"></i>
       </button>
     `;
 
-    // --- 4. Eventos ---
+    // Añadir al DOM
+    const container = document.getElementById("toast-container");
+    container.appendChild(toast);
 
-    // Botón de acción (si existe)
-    if (options.label && options.onClick) {
-      const actionBtn = toastEl.querySelector(".js-toast-action");
-      if (actionBtn) {
-        actionBtn.addEventListener("click", (e) => {
-          e.stopPropagation();
-          options.onClick();
-          this.dismiss(toastEl);
-        });
-      }
-    }
+    // Listener para cerrar manualmente
+    toast.querySelector("button").onclick = () => this.dismiss(toast);
 
-    // Botón cerrar (X)
-    const closeBtn = toastEl.querySelector(".js-toast-close");
-    if (closeBtn) {
-      closeBtn.addEventListener("click", () => this.dismiss(toastEl));
-    }
+    // Animación de entrada (Next tick)
+    requestAnimationFrame(() => {
+      toast.classList.remove("translate-y-10", "opacity-0", "scale-95");
+      toast.classList.add("translate-y-0", "opacity-100", "scale-100");
+    });
 
     // Auto-cierre
-    const duration = options.duration || 4000;
-    if (duration > 0) {
-      setTimeout(() => {
-        // Solo cerrar si sigue en el DOM
-        if (toastEl.isConnected) this.dismiss(toastEl);
-      }, duration);
-    }
-
-    // --- 5. Mostrar en pantalla (Animación de entrada) ---
-    this.container.appendChild(toastEl);
-
-    // Pequeño delay para permitir que el navegador renderice antes de animar
-    requestAnimationFrame(() => {
-      toastEl.classList.remove("translate-x-full", "opacity-0");
-    });
+    setTimeout(() => {
+      this.dismiss(toast);
+    }, duration);
   }
 
-  dismiss(element) {
+  dismiss(toast) {
     // Animación de salida
-    element.classList.add("translate-x-full", "opacity-0");
+    toast.classList.add("opacity-0", "translate-y-4", "scale-95");
+    toast.style.marginBottom = `-${toast.offsetHeight}px`; // Colapsar espacio
 
-    // Eliminar del DOM después de la transición CSS
-    element.addEventListener("transitionend", () => {
-      if (element.isConnected) element.remove();
-    });
+    setTimeout(() => {
+      toast.remove();
+    }, 300);
   }
 }
 

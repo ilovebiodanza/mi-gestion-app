@@ -6,11 +6,13 @@
 
 /* --- SortableJS --- */
 .sortable-ghost {
-  @apply opacity-40 bg-indigo-50 border-2 border-dashed border-indigo-300 rounded-lg;
+  /* Cambio: indigo-50 -> brand-50 (para coherencia) */
+  @apply opacity-40 bg-brand-50 border-2 border-dashed border-slate-300 rounded-lg;
 }
 
 .sortable-drag {
-  @apply cursor-grabbing shadow-2xl scale-105 rotate-2 bg-white ring-2 ring-primary ring-opacity-50 !important;
+  /* CORRECCIÓN CRÍTICA: ring-primary -> ring-brand-500 */
+  @apply cursor-grabbing shadow-2xl scale-105 rotate-2 bg-white ring-2 ring-brand-500 ring-opacity-50 !important;
 }
 
 .drag-handle {
@@ -60,10 +62,9 @@
 }
 
 /* --- Seguridad: Máscara para inputs de texto --- */
-/* Esto hace que un input type="text" se vea como password */
 .security-mask {
   -webkit-text-security: disc;
   text-security: disc;
-  font-family: monospace; /* Ayuda a que los puntos se vean uniformes */
+  font-family: monospace;
   letter-spacing: 2px;
 }
