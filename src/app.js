@@ -32,17 +32,20 @@ async function initializeApplication() {
 
 async function handleAuthStateChange(user, appElement) {
   if (user) {
-    // ... lógica existente ...
+    // [NUEVO] Doble chequeo de seguridad
+    if (!user.emailVerified) {
+      console.warn("Usuario detectado pero no verificado. Cerrando sesión...");
+      await authService.logout();
+      showAuthForms(appElement);
+      toast.show("Debes verificar tu correo para continuar", "error");
+      return;
+    }
+
     try {
       await templateService.initialize(user.uid);
     } catch (error) {
       console.error("Error init:", error);
     }
-
-    // [NUEVO] Antes de mostrar el Dashboard, chequeamos si hay un enlace mágico
-    // Pasamos 'appElement' para poder mostrar notificaciones
-    await handleDeepLink(user);
-
     showDashboard(user, appElement);
   } else {
     showAuthForms(appElement);
@@ -213,11 +216,10 @@ function showVaultListView(user) {
     () => requireEncryption(() => showTemplateManager(user))
   );
 
-  document
-    .getElementById("btnNewDocVault")
-    ?.addEventListener("click", () =>
-      requireEncryption(() => showTemplateManager(user))
-    );
+  document.getElementById("btnNewDocVault")?.addEventListener("click", () =>
+    // requireEncryption(() => showTemplateManager(user))
+    vaultList.onNewDocument()
+  );
   document
     .getElementById("btnSettings")
     ?.addEventListener("click", () => showSettings(user));
@@ -352,63 +354,4 @@ window.app = { requireEncryption };
 
 export function initApp() {
   initializeApplication();
-}
-
-// [NUEVO] Lógica de Enlaces Mágicos (Gemini)
-async function handleDeepLink(user) {
-  const params = new URLSearchParams(window.location.search);
-  const action = params.get("action");
-
-  if (action === "save") {
-    console.log("🔗 Enlace mágico detectado...");
-
-    const templateId = params.get("tid");
-    const rawData = params.get("data");
-
-    if (!templateId || !rawData) return;
-
-    try {
-      // 1. Limpiar URL para que no se ejecute de nuevo al recargar
-      window.history.replaceState({}, document.title, window.location.pathname);
-
-      // 2. Buscar la plantilla
-      const template = await templateService.getTemplateById(templateId);
-      if (!template) {
-        toast.show("La plantilla del enlace no existe", "error");
-        return;
-      }
-
-      // 3. Decodificar datos
-      const data = JSON.parse(decodeURIComponent(rawData));
-
-      // 4. Verificamos Seguridad
-      if (template.securityLevel === "medium") {
-        // CASO FELIZ: Seguridad Media -> Guardado Automático
-        // Usamos el título del primer campo o un genérico
-        const firstField = Object.keys(data)[0];
-        const title = data[firstField]
-          ? `${data[firstField]}`
-          : "Nuevo Registro (IA)";
-
-        await documentService.create({
-          title: title,
-          data: data,
-          template: template,
-          tags: ["gemini"],
-        });
-
-        toast.show(`✅ Guardado en ${template.name}`, "success");
-      } else {
-        // CASO ALTA SEGURIDAD: Requiere abrir editor y pedir clave
-        // Por ahora solo avisamos, pero aquí podrías abrir el editor pre-llenado
-        toast.show(
-          "Documento de alta seguridad recibido. Abre la bóveda para guardar.",
-          "info"
-        );
-      }
-    } catch (error) {
-      console.error("Error procesando enlace:", error);
-      toast.show("Error al procesar el enlace mágico", "error");
-    }
-  }
 }

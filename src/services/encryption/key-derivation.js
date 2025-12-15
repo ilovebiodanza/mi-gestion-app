@@ -1,4 +1,6 @@
-// src/services/encryption/key-derivation.js
+/**
+ * Derivación de clave maestra usando PBKDF2
+ */
 
 /**
  * Generar salt aleatorio
@@ -10,12 +12,11 @@ export function generateSalt(length = 16) {
 }
 
 /**
- * Derivar clave desde contraseña usando PBKDF2 (Genérica)
- * Se usa tanto para la MasterKey como para la MediumKey
+ * Derivar clave maestra desde contraseña usando PBKDF2
  */
-export async function deriveKey(password, salt) {
+export async function deriveMasterKey(password, salt) {
   try {
-    // console.log("🔑 Derivando clave...");
+    console.log("🔑 Derivando clave maestra...");
 
     const passwordBuffer = new TextEncoder().encode(password);
 
@@ -27,7 +28,8 @@ export async function deriveKey(password, salt) {
       ["deriveKey"]
     );
 
-    const derivedKey = await crypto.subtle.deriveKey(
+    // CORRECCIÓN AQUÍ: Cambiar false a true
+    const masterKey = await crypto.subtle.deriveKey(
       {
         name: "PBKDF2",
         salt: salt,
@@ -39,33 +41,33 @@ export async function deriveKey(password, salt) {
         name: "AES-GCM",
         length: 256,
       },
-      true, // Exportable para poder guardarla como Uint8Array
+      true, // <--- ¡IMPORTANTE! Debe ser TRUE para poder hacer exportKey después
       ["encrypt", "decrypt"]
     );
 
-    const exportedKey = await crypto.subtle.exportKey("raw", derivedKey);
+    // Ahora esto funcionará porque la clave es extraíble
+    const exportedKey = await crypto.subtle.exportKey("raw", masterKey);
+
+    console.log("✅ Clave maestra derivada (256 bits)");
     return new Uint8Array(exportedKey);
   } catch (error) {
-    console.error("❌ Error al derivar clave:", error);
+    console.error("❌ Error al derivar clave maestra:", error);
     throw error;
   }
 }
-
-// Mantenemos este alias por si alguna referencia antigua lo busca,
-// pero internamente ya todo usa deriveKey
-export const deriveMasterKey = deriveKey;
 
 /**
  * Verificar contraseña (sin revelar la clave)
  */
 export async function verifyPassword(password, salt, storedVerifier) {
   try {
-    // Usamos la función genérica renombrada
-    const derivedKey = await deriveKey(password, salt);
+    const derivedKey = await deriveMasterKey(password, salt);
 
+    // Crear un hash simple para verificación (no la clave completa)
     const hashBuffer = await crypto.subtle.digest("SHA-256", derivedKey);
-    const verificationHash = new Uint8Array(hashBuffer).slice(0, 16);
+    const verificationHash = new Uint8Array(hashBuffer).slice(0, 16); // Primeros 16 bytes
 
+    // Comparar con el verificador almacenado
     const isMatch = verificationHash.every(
       (byte, index) => byte === storedVerifier[index]
     );
@@ -82,5 +84,5 @@ export async function verifyPassword(password, salt, storedVerifier) {
  */
 export async function createPasswordVerifier(masterKey) {
   const hashBuffer = await crypto.subtle.digest("SHA-256", masterKey);
-  return new Uint8Array(hashBuffer).slice(0, 16);
+  return new Uint8Array(hashBuffer).slice(0, 16); // Primeros 16 bytes
 }

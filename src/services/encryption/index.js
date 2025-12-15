@@ -1,124 +1,86 @@
 // src/services/encryption/index.js
-import { deriveKey, generateSalt } from "./key-derivation.js";
-import { encryptionCore } from "./encryption-core.js";
-import { documentEncryption } from "./document-encryption.js";
+import { encryptData, decryptData } from "./crypto-utils.js";
+import { deriveMasterKey, verifyPassword } from "./key-derivation.js"; // <--- Ajuste aquí
 
 class EncryptionService {
   constructor() {
-    this.masterKey = null;
-    this.mediumKey = null;
-
-    this.salt = null;
+    this.key = null;
     this.userId = null;
-    this.verifier = null;
-
-    this.lockTimeout = null;
-    this.GRACE_PERIOD_MS = 15 * 60 * 1000;
+    this.isUnlocked = false;
+    this.lockTimer = null;
+    this.GRACE_PERIOD_MS = 2 * 60 * 60 * 1000; // 2 Horas
   }
 
-  async initialize(password, salt, userId, verifier = null) {
+  _resetTimer() {
+    if (this.lockTimer) clearTimeout(this.lockTimer);
+    this.lockTimer = setTimeout(() => {
+      console.warn("⏳ Tiempo de gracia expirado.");
+      this.lock();
+      window.location.reload();
+    }, this.GRACE_PERIOD_MS);
+  }
+
+  // ACEPTA VERIFIER
+  async initialize(password, salt, uid, verifier = null) {
     try {
-      this.salt = salt;
-      this.userId = userId;
-      this.verifier = verifier;
+      this.userId = uid;
 
-      this.masterKey = await deriveKey(password, salt);
-
-      if (this.verifier) {
-        const isValid = await this.verifyPassword(this.masterKey);
-        if (!isValid) throw new Error("Contraseña incorrecta");
+      // 1. SI HAY VERIFICADOR, COMPROBAMOS LA CONTRASEÑA ANTES DE SEGUIR
+      if (verifier) {
+        const isValid = await verifyPassword(password, salt, verifier);
+        if (!isValid) {
+          console.error("🚫 Contraseña de bóveda incorrecta.");
+          throw new Error("Contraseña incorrecta");
+        }
       }
 
-      this.resetLockTimer();
+      // 2. Si es válida (o no hay verificador), derivamos y abrimos
+      const derivedKey = await deriveMasterKey(password, salt);
+      this.key = derivedKey;
+      this.isUnlocked = true;
+
+      this._resetTimer();
+      console.log("🔓 Bóveda desbloqueada y verificada.");
       return true;
     } catch (error) {
-      console.error("Error inicializando encriptación:", error);
-      this.masterKey = null;
-      throw error;
+      this.lock();
+      throw error; // Esto hará que el PasswordPrompt muestre el error rojo
     }
-  }
-
-  async initializeMediumSecurity(password, userId) {
-    try {
-      const deterministicSalt = new TextEncoder().encode(userId);
-      this.mediumKey = await deriveKey(password, deterministicSalt);
-      console.log("🔐 Nivel de seguridad Medio activado");
-    } catch (error) {
-      console.error("Error iniciando seguridad media:", error);
-    }
-  }
-
-  isReady() {
-    return this.masterKey !== null;
-  }
-  hasMediumSecurity() {
-    return this.mediumKey !== null;
   }
 
   lock() {
-    this.masterKey = null;
-    if (this.lockTimeout) clearTimeout(this.lockTimeout);
-    console.log("🔒 Bóveda bloqueada");
-  }
-
-  clearKey() {
-    this.masterKey = null;
-    this.mediumKey = null;
-    this.salt = null;
+    console.log("🔒 Bloqueando bóveda (Limpieza de memoria)...");
+    this.key = null; // <--- La llave se borra (se vuelve null)
+    this.isUnlocked = false; // <--- La bandera se baja
     this.userId = null;
+    if (this.lockTimer) clearTimeout(this.lockTimer); // Detenemos el reloj
   }
 
-  resetLockTimer() {
-    if (this.lockTimeout) clearTimeout(this.lockTimeout);
-    this.lockTimeout = setTimeout(() => this.lock(), this.GRACE_PERIOD_MS);
-  }
-
-  async encryptDocument(data, level = "high") {
-    let keyToUse = this.masterKey;
-    if (level === "medium") {
-      if (!this.mediumKey) throw new Error("Seguridad media no inicializada");
-      keyToUse = this.mediumKey;
-    } else {
-      if (!this.masterKey) throw new Error("Bóveda bloqueada");
-      this.resetLockTimer();
-    }
-    return await documentEncryption.encrypt(data, keyToUse);
+  isReady() {
+    return this.isUnlocked === true && this.key !== null;
   }
 
   async decryptDocument(encryptedData) {
-    if (this.masterKey) {
-      try {
-        const result = await documentEncryption.decrypt(
-          encryptedData,
-          this.masterKey
-        );
-        this.resetLockTimer();
-        return result;
-      } catch (e) {
-        if (!this.mediumKey) throw e;
-      }
-    }
-    if (this.mediumKey) {
-      return await documentEncryption.decrypt(encryptedData, this.mediumKey);
-    }
-    throw new Error("Bóveda bloqueada.");
+    if (!this.isReady()) throw new Error("Bóveda bloqueada");
+    this._resetTimer();
+    return await decryptData(encryptedData, this.key);
   }
 
-  // Verificación Limpia (Solo Objetos V2)
-  async verifyPassword(derivedKey) {
-    if (!this.verifier) return true;
+  async encryptDocument(data) {
+    if (!this.isReady()) throw new Error("Bóveda bloqueada");
+    this._resetTimer();
+    return await encryptData(data, this.key);
+  }
+
+  async validateKey(password, salt) {
+    // Método auxiliar para verificaciones sin estado
+    // Nota: Si tienes verifier es mejor usar verifyPassword directamente
     try {
-      await encryptionCore.decryptData(this.verifier, derivedKey);
+      await deriveMasterKey(password, salt);
       return true;
     } catch (e) {
       return false;
     }
-  }
-
-  async generateVerifier(password, salt) {
-    const key = await deriveKey(password, salt);
-    const verifierContent = new TextEncoder().encode("VERIFIER");
-    return await encryptionCore.encryptData(verifierContent, key);
   }
 }
 

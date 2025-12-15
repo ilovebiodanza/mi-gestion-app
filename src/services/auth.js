@@ -64,7 +64,7 @@ class AuthService {
         const data = snap.data();
         return {
           salt: this.base64ToBuffer(data.salt),
-          verifier: data.verifier || null, // Pasamos el objeto directo
+          verifier: data.verifier ? this.base64ToBuffer(data.verifier) : null,
         };
       }
       return null;
@@ -76,42 +76,30 @@ class AuthService {
 
   // --- Auth Methods ---
 
-  // src/services/auth.js (Solo la parte del método login)
-
   async login(email, password) {
     if (!this.auth) throw new Error("Firebase no inicializado");
     try {
       const { signInWithEmailAndPassword, signOut } = window.firebaseModules;
       const cred = await signInWithEmailAndPassword(this.auth, email, password);
 
-      // 1. Verificación de Email (Seguridad Básica)
+      // [NUEVO] Validación de correo verificado
       if (!cred.user.emailVerified) {
+        // Si no está verificado, cerramos la sesión inmediatamente
         await signOut(this.auth);
         this.updateState(null);
+
+        // Lanzamos un error personalizado para capturarlo en el UI
         const error = new Error("El correo no ha sido verificado.");
         error.code = "auth/email-not-verified";
         throw error;
-      }
-
-      // 2. [NUEVO] Inicializar Seguridad Media (Llave del Login)
-      // Aprovechamos que tenemos la contraseña aquí para generar la llave 'medium'
-      // sin molestar al usuario pidiéndola de nuevo.
-      if (
-        encryptionService &&
-        typeof encryptionService.initializeMediumSecurity === "function"
-      ) {
-        await encryptionService.initializeMediumSecurity(
-          password,
-          cred.user.uid
-        );
       }
 
       this.updateState(cred.user);
       return { success: true, user: cred.user };
     } catch (error) {
       console.error("Error Login:", error.code);
-      // Aseguramos limpieza si algo falló
-      await this.logout();
+      // No llamamos a logout aquí si es error de credenciales, pero sí aseguramos limpieza
+      if (this.user) await this.logout();
       throw error;
     }
   }

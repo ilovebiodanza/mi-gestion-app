@@ -34,7 +34,7 @@ class DocumentService {
   }
 
   /**
-   * Crea un documento nuevo (Soporta Niveles de Seguridad)
+   * Crea un documento nuevo
    * @param {Object} payload - { title, data, template, tags }
    */
   async create(payload) {
@@ -51,15 +51,7 @@ class DocumentService {
       updatedAt: new Date().toISOString(),
     };
 
-    // [CAMBIO CLAVE] Detectamos el nivel de seguridad de la plantilla
-    // Si no tiene, asumimos 'high' por defecto
-    const securityLevel = template.securityLevel || "high";
-
-    // Le decimos al servicio de encriptación qué llave usar
-    const encryptedObject = await encryptionService.encryptDocument(
-      data,
-      securityLevel
-    );
+    const encryptedObject = await encryptionService.encryptDocument(data);
 
     const { doc, setDoc } = window.firebaseModules;
     const docRef = doc(this.getCollection());
@@ -68,7 +60,7 @@ class DocumentService {
       id: docRef.id,
       templateId: template.id,
       encryptedContent: encryptedObject,
-      encryptionMetadata: { version: 2, algo: "AES-GCM", level: securityLevel },
+      encryptionMetadata: { version: 1, algo: "AES-GCM" },
       metadata: metadata,
     };
 

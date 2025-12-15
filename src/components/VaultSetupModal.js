@@ -1,7 +1,11 @@
 // src/components/VaultSetupModal.js
 import { authService } from "../services/auth.js";
 import { encryptionService } from "../services/encryption/index.js";
-import { generateSalt } from "../services/encryption/key-derivation.js";
+import {
+  generateSalt,
+  createPasswordVerifier,
+  deriveMasterKey,
+} from "../services/encryption/key-derivation.js";
 
 export class VaultSetupModal {
   constructor(onSuccess) {
@@ -100,7 +104,7 @@ export class VaultSetupModal {
       btn.innerHTML = `<i class="fas fa-circle-notch fa-spin"></i> Verificando seguridad...`;
 
       try {
-        // 1. Verificar conflicto con Login
+        // 1. Verificar conflicto con Login (Opción A)
         const isConflict = await authService.checkPasswordConflict(pass1);
         if (isConflict) {
           btn.disabled = false;
@@ -112,13 +116,13 @@ export class VaultSetupModal {
 
         btn.innerHTML = `<i class="fas fa-cog fa-spin"></i> Cifrando...`;
 
-        // 2. Generar Criptografía (V2)
+        // 2. Generar Criptografía
         const salt = generateSalt(16);
         const user = authService.getCurrentUser();
 
-        // Usamos generateVerifier del servicio, que devuelve un Objeto { content, iv }
-        // Ya NO usamos createPasswordVerifier manual
-        const verifier = await encryptionService.generateVerifier(pass1, salt);
+        // Derivamos la llave para crear el verificador
+        const masterKey = await deriveMasterKey(pass1, salt);
+        const verifier = await createPasswordVerifier(masterKey);
 
         // 3. Guardar Salt y Verifier en Firestore
         const { setDoc, doc } = window.firebaseModules;
@@ -132,7 +136,7 @@ export class VaultSetupModal {
           ),
           {
             salt: authService.bufferToBase64(salt),
-            verifier: verifier, // 👈 CAMBIO CLAVE: Guardamos el objeto directo, NO base64
+            verifier: authService.bufferToBase64(verifier), // <--- NUEVO
             version: 2,
             createdAt: new Date().toISOString(),
           }

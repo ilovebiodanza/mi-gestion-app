@@ -51,27 +51,6 @@ export class TemplateForm {
   }
 
   setupMainListeners(container) {
-    // [NUEVO] Lógica visual para los Radio Buttons de seguridad
-    const radioInputs = container.querySelectorAll(
-      'input[name="securityLevel"]'
-    );
-    radioInputs.forEach((input) => {
-      input.addEventListener("change", (e) => {
-        // Limpiamos estilos de todos
-        radioInputs.forEach((rb) => {
-          const label = rb.closest("label");
-          label.className = `relative flex p-4 cursor-pointer rounded-xl border transition-all hover:bg-slate-50 border-slate-200`;
-        });
-        // Aplicamos estilo al seleccionado
-        const selectedLabel = e.target.closest("label");
-        const isHigh = e.target.value === "high";
-        const activeClass = isHigh
-          ? "border-indigo-500 bg-indigo-50/50 ring-1 ring-indigo-500"
-          : "border-emerald-500 bg-emerald-50/50 ring-1 ring-emerald-500";
-
-        selectedLabel.className = `relative flex p-4 cursor-pointer rounded-xl border transition-all hover:bg-slate-50 ${activeClass}`;
-      });
-    });
     // Cambio automático de icono según categoría
     const catSelect = container.querySelector("#templateCategory");
     const iconInput = container.querySelector("#templateIcon");
@@ -258,33 +237,29 @@ export class TemplateForm {
       const name = nameInput ? nameInput.value.trim() : "";
       if (!name) throw new Error("Por favor, asigna un nombre a la plantilla.");
 
+      // RECOLECCIÓN DE DATOS:
+      // Ya no scrapeamos el DOM. Pedimos los datos limpios a cada controlador.
+      // Además, filtramos campos que puedan estar vacíos o inválidos si queremos.
       const fields = this.fieldControllers.map((ctrl, idx) => {
         const def = ctrl.getDefinition();
-        def.order = idx + 1;
+        def.order = idx + 1; // Actualizamos el orden final
         return def;
       });
 
       if (fields.length === 0)
         throw new Error("Agrega al menos un campo para guardar la plantilla.");
 
+      // Validar etiquetas vacías
       const emptyLabels = fields.filter(
         (f) => !f.label.trim() && f.type !== "separator"
       );
+      console.log("*** ", { emptyLabels });
       if (emptyLabels.length > 0) {
         throw new Error("Hay campos sin etiqueta. Por favor, nómbralos.");
       }
 
-      // [NUEVO] Capturamos el nivel de seguridad
-      const securityLevelInput = document.querySelector(
-        'input[name="securityLevel"]:checked'
-      );
-      const securityLevel = securityLevelInput
-        ? securityLevelInput.value
-        : "high";
-
       const data = {
         name,
-        securityLevel, // <--- Aquí se guarda la magia
         category: document.getElementById("templateCategory").value,
         icon: document.getElementById("templateIcon").value,
         color: document.getElementById("templateColor").value,

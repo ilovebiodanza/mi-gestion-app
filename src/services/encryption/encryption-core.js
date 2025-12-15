@@ -26,14 +26,17 @@ export async function encryptData(data, key, additionalData = null) {
     const iv = generateIV();
     const cryptoKey = await importKey(key);
 
-    // 3. Configurar algoritmo
+    // 3. Configurar algoritmo (CORRECCIÓN AQUÍ)
+    // Construimos el objeto paso a paso para evitar pasar 'null' o 'undefined'
     const algorithm = {
       name: "AES-GCM",
       iv: iv,
       tagLength: 128,
     };
 
+    // Solo agregamos additionalData si tiene valor
     if (additionalData) {
+      // Aseguramos que sea string antes de codificar
       const adString = String(additionalData);
       algorithm.additionalData = new TextEncoder().encode(adString);
     }
@@ -76,7 +79,7 @@ export async function decryptData(encryptedData, key, additionalData = null) {
     // 2. Importar clave
     const cryptoKey = await importKey(key);
 
-    // 3. Configurar algoritmo
+    // 3. Configurar algoritmo (CORRECCIÓN AQUÍ TAMBIÉN)
     const algorithm = {
       name: "AES-GCM",
       iv: iv,
@@ -121,6 +124,7 @@ export async function encryptField(data, masterKey, fieldName) {
     field: fieldName,
     timestamp: new Date().toISOString(),
   };
+  // Pasamos fieldName como additionalData para vincular el cifrado al campo
   return encryptData(fieldData, masterKey, fieldName);
 }
 
@@ -141,12 +145,3 @@ async function importKey(keyBuffer) {
     "decrypt",
   ]);
 }
-
-// 👇👇👇 AQUÍ ESTÁ LA SOLUCIÓN 👇👇👇
-// Exportamos el objeto que index.js está buscando
-export const encryptionCore = {
-  encryptData,
-  decryptData,
-  encryptField,
-  decryptField,
-};
