@@ -159,7 +159,8 @@ class AuthService {
         encryptionService &&
         typeof encryptionService.clearKey === "function"
       ) {
-        encryptionService.clearKey();
+        encryptionService.lock();
+        //encryptionService.clearKey();
       }
 
       const { signOut } = window.firebaseModules;

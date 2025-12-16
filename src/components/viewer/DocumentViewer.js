@@ -5,7 +5,7 @@ import { copyToWhatsApp } from "./WhatsAppExporter.js";
 import { printDocument } from "./PrintExporter.js";
 import { getLocalCurrency } from "../../utils/helpers.js";
 import { globalPlayer } from "../common/MediaPlayer.js";
-import * as FieldRenderers from "./FieldRenderers.js";
+import { ViewerRegistry } from "./core/ViewerRegistry.js";
 
 export class DocumentViewer {
   constructor(docId, onBack) {
@@ -15,11 +15,7 @@ export class DocumentViewer {
     this.template = null;
     this.decryptedData = null;
     this.currencyConfig = getLocalCurrency();
-    this.tableStates = {};
-  }
-
-  render() {
-    return `<div id="documentViewerPlaceholder" class="animate-fade-in pb-20"></div>`;
+    this.viewersInstanceCache = []; // Para guardar referencias a los viewers activos
   }
 
   // MODIFICAR ESTA FUNCIÓN EN DocumentViewer.js
@@ -47,7 +43,8 @@ export class DocumentViewer {
         this.document.encryptedContent
       );
 
-      this.template.fields.forEach((f) => {
+      // --- ❌ ELIMINAR ESTE BLOQUE ---
+      /* this.template.fields.forEach((f) => {
         if (f.type === "table")
           this.tableStates[f.id] = {
             search: "",
@@ -55,6 +52,8 @@ export class DocumentViewer {
             sortDir: "asc",
           };
       });
+      */
+      // -------------------------------
       this.renderContent();
     } catch (error) {
       console.error(error);
@@ -83,59 +82,14 @@ export class DocumentViewer {
     }
   }
 
-  renderFieldValue(type, value, isTableContext = false) {
-    if (
-      value === undefined ||
-      value === null ||
-      (typeof value === "string" && value.trim() === "")
-    ) {
-      return '<span class="text-slate-300 text-xs italic">Vacío</span>';
-    }
-    switch (type) {
-      case "url":
-        return FieldRenderers.renderUrlField(value, isTableContext);
-      case "boolean":
-        return FieldRenderers.renderBoolean(value);
-      case "date":
-        return FieldRenderers.renderDate(value);
-      case "currency":
-        return FieldRenderers.renderCurrency(value, this.currencyConfig);
-      case "percentage":
-        return FieldRenderers.renderPercentage(value);
-      case "secret":
-        return FieldRenderers.renderSecret(value, isTableContext);
-      case "text":
-        return FieldRenderers.renderText(value, isTableContext);
-      default:
-        return String(value);
-    }
+  render() {
+    return `<div id="documentViewerPlaceholder" class="animate-fade-in pb-20"></div>`;
   }
 
-  groupFields() {
-    const groups = [];
-    let currentGroup = {
-      id: "group-principal",
-      label: "Información General",
-      icon: "fas fa-info-circle",
-      fields: [],
-    };
-
-    this.template.fields.forEach((field) => {
-      if (field.type === "separator") {
-        if (currentGroup.fields.length > 0) groups.push(currentGroup);
-        currentGroup = {
-          id: `group-${field.id}`,
-          label: field.label,
-          icon: "fas fa-layer-group",
-          fields: [],
-          isSeparator: true,
-        };
-      } else {
-        currentGroup.fields.push(field);
-      }
-    });
-    if (currentGroup.fields.length > 0) groups.push(currentGroup);
-    return groups;
+  renderLoading() {
+    document.getElementById(
+      "documentViewerPlaceholder"
+    ).innerHTML = `<div class="flex flex-col items-center justify-center py-20"><div class="animate-spin rounded-full h-8 w-8 border-2 border-slate-200 border-t-brand-600 mb-4"></div><p class="text-slate-400 text-sm">Cargando...</p></div>`;
   }
 
   renderContent() {
@@ -160,12 +114,24 @@ export class DocumentViewer {
       return fields
         .map((field) => {
           const value = this.decryptedData[field.id];
+
+          // 1. INSTANCIAR EL VIEWER
+          const ViewerClass = ViewerRegistry.getViewerClass(field.type);
+          const viewerInstance = new ViewerClass(field, value, {
+            currencyConfig: this.currencyConfig,
+            // Aquí podrías pasar callbacks si el viewer necesita comunicarse con el padre
+          });
+
+          // Guardamos la instancia para llamar a postRender después
+          this.viewersInstanceCache.push(viewerInstance);
+
+          // 2. RENDERIZAR HTML
           if (field.type === "table") {
-            return `<div class="col-span-1 md:col-span-2 mt-4 mb-4">${this.renderTableField(
-              field,
-              value
-            )}</div>`;
+            return `<div class="col-span-1 md:col-span-2 mt-4 mb-4">
+                ${viewerInstance.render()}
+            </div>`;
           }
+
           const isFullWidth = ["text", "url"].includes(field.type);
           const spanClass = isFullWidth
             ? "col-span-1 md:col-span-2"
@@ -177,7 +143,7 @@ export class DocumentViewer {
                  ${field.label}
               </dt>
               <dd class="text-sm text-slate-800 font-medium break-words leading-relaxed">
-                 ${this.renderFieldValue(field.type, value)}
+                 ${viewerInstance.render()} 
               </dd>
             </div>`;
         })
@@ -298,6 +264,33 @@ export class DocumentViewer {
     this.setupContentListeners();
   }
 
+  groupFields() {
+    const groups = [];
+    let currentGroup = {
+      id: "group-principal",
+      label: "Información General",
+      icon: "fas fa-info-circle",
+      fields: [],
+    };
+
+    this.template.fields.forEach((field) => {
+      if (field.type === "separator") {
+        if (currentGroup.fields.length > 0) groups.push(currentGroup);
+        currentGroup = {
+          id: `group-${field.id}`,
+          label: field.label,
+          icon: "fas fa-layer-group",
+          fields: [],
+          isSeparator: true,
+        };
+      } else {
+        currentGroup.fields.push(field);
+      }
+    });
+    if (currentGroup.fields.length > 0) groups.push(currentGroup);
+    return groups;
+  }
+
   // ... (Mantén los métodos triggerPrint, setupContentListeners y los helpers de tabla igual,
   // ya que la lógica no cambia, solo el HTML generado en renderContent)
   // Asegúrate de copiar el método showPrintOptions actualizado de mi respuesta anterior si no lo tienes.
@@ -411,65 +404,8 @@ export class DocumentViewer {
     // (Para no hacer la respuesta infinita, asumo que mantienes esa lógica de delegación que ya funcionaba bien)
   }
 
-  // MANTENER RESTO DE MÉTODOS (renderTableField, etc) IGUALES
-  // ...
-  renderTableField(field, value) {
-    const rows = Array.isArray(value) ? value : [];
-    if (rows.length === 0)
-      return `<div class="p-6 border border-dashed border-slate-200 rounded-lg bg-slate-50 text-center text-xs text-slate-400 flex flex-col items-center gap-2"><i class="fas fa-table text-xl opacity-20"></i>${field.label} (Tabla vacía)</div>`;
-
-    // ... lógica de render tabla ...
-    // Usar estilos bg-white border-slate-200 rounded-lg para la tabla
-    // Retornar HTML de tabla
-    // (Puedes usar el código de tabla de mi respuesta anterior, es compatible)
-    return `<div class="bg-white border border-slate-200 rounded-lg overflow-hidden shadow-sm">
-        <div class="bg-slate-50 px-4 py-2 border-b border-slate-100 flex justify-between items-center">
-            <span class="text-xs font-bold text-slate-500 uppercase">${
-              field.label
-            }</span>
-            <span class="bg-white border border-slate-200 px-2 rounded-full text-[10px] text-slate-400">${
-              rows.length
-            }</span>
-        </div>
-        <div class="overflow-x-auto">
-            <table class="min-w-full text-sm text-left text-slate-600">
-                <thead class="bg-slate-50 text-xs text-slate-400 uppercase font-medium">
-                     ${field.columns
-                       .map((c) => `<th class="px-4 py-2">${c.label}</th>`)
-                       .join("")}
-                </thead>
-                <tbody class="divide-y divide-slate-100">
-                    ${rows
-                      .map(
-                        (row) => `
-                        <tr class="hover:bg-slate-50/50">
-                            ${field.columns
-                              .map(
-                                (c) =>
-                                  `<td class="px-4 py-2">${this.renderFieldValue(
-                                    c.type,
-                                    row[c.id],
-                                    true
-                                  )}</td>`
-                              )
-                              .join("")}
-                        </tr>
-                    `
-                      )
-                      .join("")}
-                </tbody>
-            </table>
-        </div>
-    </div>`;
-  }
-
   // Agrega aquí los demás métodos auxiliares necesarios (renderLoading, renderError, handleDelete, handleEdit, handleCopyToWhatsApp)
   // Copialos del archivo que me pasaste, solo asegurate que renderError use clases de Tailwind limpias (bg-red-50 text-red-600) en lugar de estilos custom.
-  renderLoading() {
-    document.getElementById(
-      "documentViewerPlaceholder"
-    ).innerHTML = `<div class="flex flex-col items-center justify-center py-20"><div class="animate-spin rounded-full h-8 w-8 border-2 border-slate-200 border-t-brand-600 mb-4"></div><p class="text-slate-400 text-sm">Cargando...</p></div>`;
-  }
   renderError(msg) {
     document.getElementById(
       "documentViewerPlaceholder"

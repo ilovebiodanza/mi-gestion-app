@@ -51,12 +51,16 @@ class TemplateStorage {
         console.log(
           `✅ ${templates.length} plantillas cargadas desde Firestore`
         );
-        return templates;
+
+        // ❌ CAMBIO CLAVE: Retornar un objeto que contenga las plantillas
+        return { templates: templates, exists: true };
       }
 
-      return [];
+      // ✅ CAMBIO CLAVE: Retornar un objeto que indique que no existe
+      return { templates: [], exists: false };
     } catch (error) {
       console.error("❌ Error al cargar de Firestore:", error);
+      // Para errores de red/Firestore, puedes retornar null para el fallback a localStorage
       return null;
     }
   }

@@ -58,21 +58,27 @@ function requireEncryption(onSuccess, force = false) {
   const user = authService.getCurrentUser();
   if (!user) return;
 
-  // CAMBIO: Si 'force' es true, saltamos la validación de isReady
-  // para obligar al usuario a re-ingresar la clave (caso de cambio de usuario)
-  if (!force && encryptionService.isReady()) {
+  const isKeyValidForCurrentUser =
+    encryptionService.isReady() && encryptionService.userId === user.uid; // 🚨 AÑADIMOS LA COMPARACIÓN DE UID AQUÍ
+
+  // CAMBIO: Si 'force' es true, saltamos la validación.
+  // Pero si NO es forzado Y la clave es válida para ESTE usuario, continuamos.
+  if (!force && isKeyValidForCurrentUser) {
     onSuccess();
     return;
   }
 
+  // 🚨 Si el usuario actual es diferente al que tiene la clave en memoria, forzamos el bloqueo
+  // antes de mostrar el prompt para limpiar cualquier estado parcial.
+  if (encryptionService.userId !== user.uid) {
+    encryptionService.lock();
+  }
+
   const prompt = new PasswordPrompt(async (password) => {
+    // ... (El resto del callback se mantiene igual, llamando a authService.initializeEncryption) ...
     try {
       await authService.initializeEncryption(password);
-      // Intentamos desencriptar un documento de prueba para validar la clave
-      const docs = await documentService.getAllDocuments();
-      if (docs.length > 0) {
-        await encryptionService.decryptDocument(docs[0].encryptedContent);
-      }
+
       if (encryptionService.isReady()) {
         onSuccess();
         return true;
@@ -80,7 +86,6 @@ function requireEncryption(onSuccess, force = false) {
       return false;
     } catch (error) {
       console.error("❌ Validación fallida:", error);
-      // Si el servicio tiene método lock, lo bloqueamos
       if (encryptionService.lock) encryptionService.lock();
       return false;
     }
@@ -103,7 +108,7 @@ function showAuthForms(appElement) {
   };
 
   const authForms = new AuthForms(() => {
-    console.log("Login OK");
+    console.log("✅ Login OK");
   }, handleError);
 
   // Layout de Login (Clean Tech)

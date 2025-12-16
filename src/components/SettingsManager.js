@@ -105,51 +105,185 @@ export class SettingsManager {
     `;
   }
   // (Mantén los setupEventListeners exactamente igual que tu código original, la lógica no cambia)
+  // 🚨 ESTA ES LA FUNCIÓN CRÍTICA QUE ESTABA INCOMPLETA 🚨
   setupEventListeners() {
-    // ... Copia y pega tu lógica de listeners aquí ...
-    // Si quieres te la escribo, pero es idéntica a la que me pasaste.
-    // Solo asegúrate de que los IDs coincidan (btnChangeAccess, etc.), que SÍ coinciden en mi HTML nuevo.
+    const fileInput = document.getElementById("fileImport");
+    const btnRestore = document.getElementById("btnRestore");
+    const btnExport = document.getElementById("btnExport");
+    const btnChooseFile = document.getElementById("btnChooseFile");
+    const statusDiv = document.getElementById("restoreStatus");
+
+    // --- 1. Exportar / Descargar ---
+    btnExport?.addEventListener("click", async () => {
+      if (!encryptionService.isReady()) {
+        if (window.app && window.app.requireEncryption) {
+          window.app.requireEncryption(async () => {
+            await this._handleExport(btnExport);
+          });
+          return;
+        }
+      }
+      await this._handleExport(btnExport);
+    });
+
+    // --- 2. Elegir Archivo ---
+    btnChooseFile?.addEventListener("click", () => fileInput.click());
+
+    fileInput?.addEventListener("change", () => {
+      if (fileInput.files.length) {
+        btnRestore.disabled = false;
+        statusDiv.textContent = `Archivo cargado: ${fileInput.files[0].name}`;
+      } else {
+        btnRestore.disabled = true;
+        statusDiv.textContent = "";
+      }
+    });
+
+    // --- 3. Restaurar / Importar ---
+    btnRestore?.addEventListener("click", async () => {
+      const file = fileInput.files[0];
+      if (!file) return;
+
+      if (!encryptionService.isReady()) {
+        toast.show(
+          "Bóveda bloqueada. Ingresa tu clave maestra primero.",
+          "error"
+        );
+        return;
+      }
+
+      // Desactivar botones durante la restauración
+      btnRestore.disabled = true;
+      btnExport.disabled = true;
+      statusDiv.textContent = "Procesando restauración...";
+
+      try {
+        const result = await backupService.restoreBackup(file);
+
+        toast.show(
+          `✅ Restauración exitosa: ${result.docsRestored} docs y ${result.templatesRestored} plantillas.`,
+          "success"
+        );
+
+        // Redirigir al dashboard para ver los cambios
+        window.location.reload();
+      } catch (error) {
+        console.error("Error de restauración:", error);
+
+        if (error.type === "KEY_MISMATCH") {
+          // El archivo está cifrado con una clave diferente
+          // Lógica avanzada: Aquí deberías solicitar la clave antigua (Legacy Password)
+          // Pero por simplicidad, ahora solo mostramos el error
+          toast.show(
+            "❌ Fallo de cifrado. Este respaldo usa una Llave Maestra diferente. Intenta cambiar tu llave maestra primero.",
+            "error"
+          );
+        } else {
+          toast.show(
+            error.message || "❌ Error desconocido al restaurar el archivo.",
+            "error"
+          );
+        }
+      } finally {
+        btnRestore.disabled = false;
+        btnExport.disabled = false;
+        statusDiv.textContent = "";
+      }
+    });
+
+    // --- 4. Formulario de Cambio de Contraseña de Acceso (Login) ---
     document
       .getElementById("changeAccessPassForm")
       ?.addEventListener("submit", async (e) => {
         e.preventDefault();
-        // ... (Tu logica original)
-        // Ejemplo breve:
-        const current = document.getElementById("currentAccessPass").value;
+        const currentPass = document.getElementById("currentAccessPass").value;
         const newPass = document.getElementById("newAccessPass").value;
+
         try {
-          await authService.changeAccessPassword(newPass, current);
-          alert("Clave actualizada");
-          e.target.reset();
+          // Asume que authService tiene un método changeAccessPassword
+          await authService.changeAccessPassword(newPass, currentPass);
+          toast.show(
+            "✅ Contraseña de acceso actualizada. Vuelve a iniciar sesión.",
+            "success"
+          );
+          authService.logout(); // Fuerza el re-login
         } catch (err) {
-          alert(err.message);
+          toast.show(
+            err.message || "❌ Error al actualizar contraseña de acceso",
+            "error"
+          );
         }
       });
 
-    // ... Lo mismo para changeVaultPassForm, btnExport y btnRestore ...
-    // La lógica JS es 100% compatible.
+    // --- 5. Formulario de Re-Cifrado (Llave Maestra) ---
     document
       .getElementById("changeVaultPassForm")
       ?.addEventListener("submit", async (e) => {
         e.preventDefault();
-        // ... tu lógica de re-encryption ...
+        const currentVaultPass =
+          document.getElementById("currentVaultPass").value;
+        const newVaultPass = document.getElementById("newVaultPass").value;
+        const confirmVaultPass =
+          document.getElementById("confirmVaultPass").value;
+
+        if (newVaultPass !== confirmVaultPass) {
+          toast.show("Las nuevas llaves maestras no coinciden.", "error");
+          return;
+        }
+
+        const btn = document.getElementById("btnChangeVault");
+        btn.disabled = true;
+        btn.textContent = "Re-cifrando...";
+
+        try {
+          // Asume que un servicio gestiona el re-cifrado
+          // Esto requiere: 1. Validar la llave actual. 2. Re-derivar Salt/Verifier. 3. Re-cifrar TODOS los documentos.
+          await authService.reEncryptVault(currentVaultPass, newVaultPass);
+
+          toast.show(
+            "✅ ¡Bóveda re-cifrada con éxito! La nueva llave maestra está activa.",
+            "success"
+          );
+
+          // Forzar el re-lock de la bóveda para usar la nueva clave
+          encryptionService.lock();
+          window.location.reload();
+        } catch (err) {
+          toast.show(
+            err.message || "❌ Error en el re-cifrado de la bóveda.",
+            "error"
+          );
+        } finally {
+          btn.disabled = false;
+          btn.textContent = "Re-Cifrar Bóveda";
+        }
       });
-    document
-      .getElementById("btnExport")
-      ?.addEventListener("click", async () => {
-        // ... tu lógica de export ...
-      });
+  }
 
-    const fileInput = document.getElementById("fileImport");
-    const btnRestore = document.getElementById("btnRestore");
-    const statusDiv = document.getElementById("restoreStatus");
+  // Helper para manejar la exportación (con o sin re-prompt de encriptación)
+  async _handleExport(btn) {
+    if (!encryptionService.isReady()) {
+      toast.show(
+        "Bóveda bloqueada. Ingresa tu clave maestra para exportar.",
+        "error"
+      );
+      return;
+    }
 
-    fileInput?.addEventListener("change", () => {
-      if (fileInput.files.length) btnRestore.disabled = false;
-    });
+    btn.disabled = true;
+    btn.innerHTML =
+      '<span class="w-4 h-4 rounded-full bg-slate-50 flex items-center justify-center group-hover:bg-brand-50 transition-colors"><i class="fas fa-spinner fa-spin text-xs"></i></span> Descargando...';
 
-    btnRestore?.addEventListener("click", async () => {
-      // ... tu lógica de restore ...
-    });
+    try {
+      const result = await backupService.createBackup();
+      toast.show(`✅ Respaldo creado: ${result.count} documentos.`, "success");
+    } catch (e) {
+      console.error("Export Error:", e);
+      toast.show("❌ Error al generar el respaldo.", "error");
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML =
+        '<span class="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center group-hover:bg-brand-50 transition-colors"><i class="fas fa-download text-xs"></i></span> Descargar Copia Cifrada';
+    }
   }
 }

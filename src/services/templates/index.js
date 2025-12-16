@@ -27,24 +27,38 @@ class TemplateService {
         return;
       }
 
-      let templates = await this.storage.loadFromFirestore();
+      let result = await this.storage.loadFromFirestore(); // Ahora devuelve { templates: [], exists: bool } o null
 
-      if (templates === null) {
-        templates = await this.storage.loadFromLocalStorage();
+      if (result === null) {
+        // Fallback en caso de error de conexión a Firestore
+        let templates = await this.storage.loadFromLocalStorage();
+        this.userTemplates = templates || this.getDefaultTemplates();
+        return;
       }
 
-      if (!templates || templates.length === 0) {
-        console.log(
-          "⚠️ No hay plantillas. Inicializando con valores por defecto..."
-        );
-        templates = this.getDefaultTemplates();
-        await this.storage.saveToFirestore(templates);
+      let templates = result.templates;
+
+      // ❌ Lógica corregida: Solo inicializar si el documento NUNCA ha existido
+      if (!result.exists || templates.length === 0) {
+        if (!result.exists) {
+          // Solo si el documento no existe en absoluto
+          console.log(
+            "⚠️ Documento no encontrado. Inicializando con valores por defecto..."
+          );
+          templates = this.getDefaultTemplates();
+          await this.storage.saveToFirestore(templates);
+        } else {
+          // El documento existe, pero las plantillas están vacías. No sobrescribimos.
+          console.log(
+            "ℹ️ Plantillas vacías, usando sistema. No hay sobrescritura."
+          );
+        }
       }
 
       this.userTemplates = templates;
     } catch (error) {
       console.error("❌ Error al cargar plantillas:", error);
-      this.userTemplates = this.getDefaultTemplates();
+      this.userTemplates = this.getDefaultTemplates(); // Fallback de emergencia
     }
   }
 
