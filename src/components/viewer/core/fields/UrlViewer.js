@@ -1,13 +1,12 @@
 import { AbstractViewer } from "../AbstractViewer.js";
 // Nota: Ajustamos la ruta porque ahora estamos dos carpetas más adentro
 import { detectMediaType } from "../../../../utils/helpers.js";
+import { globalPlayer } from "../../../common/MediaPlayer.js";
 
 export class UrlViewer extends AbstractViewer {
   render(isTableContext = false) {
-    // 1. Extraemos el valor usando this.value
     const val = this.value;
 
-    // Lógica original adaptada
     let url = typeof val === "object" ? val?.url : val;
     let text = typeof val === "object" ? val?.text || url : val;
 
@@ -25,6 +24,9 @@ export class UrlViewer extends AbstractViewer {
 
     // --- LÓGICA DE MEDIOS (Audio / Imagen) ---
     if (mediaType === "audio" || mediaType === "image") {
+      // 2. Generamos ID único para vincular el listener en postRender
+      this.uniqueId = `media-${Math.random().toString(36).substr(2, 9)}`;
+
       const icon = mediaType === "audio" ? "fa-music" : "fa-image";
       const colorClass =
         mediaType === "audio"
@@ -35,8 +37,9 @@ export class UrlViewer extends AbstractViewer {
           ? "bg-pink-50 group-hover:bg-pink-100"
           : "bg-indigo-50 group-hover:bg-indigo-100";
 
+      // Agregamos id="${this.uniqueId}" al contenedor padre
       return `
-            <div class="flex items-center gap-3 group">
+            <div id="${this.uniqueId}" class="flex items-center gap-3 group">
                 <button type="button" 
                         class="trigger-media-btn w-9 h-9 flex items-center justify-center rounded-full border border-slate-200 ${bgClass} transition-all shadow-sm hover:scale-105"
                         data-type="${mediaType}" 
@@ -62,10 +65,34 @@ export class UrlViewer extends AbstractViewer {
         </a>`;
   }
 
+  // 3. Implementación de postRender para activar el reproductor
   postRender(container) {
-    // Si necesitas reactivar los reproductores de audio o modales de imagen
-    // la lógica iría aquí.
-    // Por ahora, tu DocumentViewer original delegaba esto globalmente,
-    // pero idealmente deberías mover esa lógica de "clicks" aquí en el futuro.
+    // Si no es multimedia (no tiene ID generado), no hacemos nada
+    if (!this.uniqueId) return;
+
+    // Buscamos el contenedor específico de este campo usando el ID único
+    const wrapper = container.querySelector(`#${this.uniqueId}`);
+    if (!wrapper) return;
+
+    const btn = wrapper.querySelector(".trigger-media-btn");
+
+    if (btn) {
+      btn.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+
+        const type = btn.dataset.type; // "audio" o "image"
+        const src = btn.dataset.src;
+        const title = btn.dataset.title;
+
+        if (type === "audio") {
+          // Asumiendo que globalPlayer tiene el método playAudio
+          globalPlayer.playAudio(src, title);
+        } else if (type === "image") {
+          // Asumiendo que globalPlayer tiene el método viewImage
+          globalPlayer.viewImage(src, title);
+        }
+      });
+    }
   }
 }

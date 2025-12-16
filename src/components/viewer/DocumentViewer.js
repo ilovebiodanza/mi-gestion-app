@@ -196,7 +196,7 @@ export class DocumentViewer {
     }
 
     container.innerHTML = `
-      <div class="flex items-center justify-between mb-6 no-print">
+      <div class="flex items-center justify-between mb-4 no-print">
          <button id="backBtn" class="flex items-center text-slate-500 hover:text-slate-800 transition-colors font-medium text-sm gap-2 px-3 py-2 rounded-lg hover:bg-slate-100">
             <i class="fas fa-arrow-left"></i> Volver
          </button>
@@ -220,21 +220,21 @@ export class DocumentViewer {
 
       <div id="documentCard" class="bg-white rounded-none sm:rounded-xl shadow-card border-y sm:border border-slate-200 min-h-[600px] print:shadow-none print:border-none">
         
-        <div class="px-8 py-10 border-b border-slate-100 bg-slate-50/30 print:bg-white print:border-b-2 print:border-black">
-             <div class="flex items-start gap-6">
-                <div class="w-16 h-16 rounded-xl flex items-center justify-center text-3xl shadow-sm border border-slate-100 bg-white print:hidden" style="color: ${accentColor}">
+        <div class="px-5 py-4 border-b border-slate-100 bg-slate-50/30 print:bg-white print:border-b-2 print:border-black">
+             <div class="flex items-start gap-4"> <div class="w-12 h-12 rounded-lg flex items-center justify-center text-xl shadow-sm border border-slate-100 bg-white print:hidden" style="color: ${accentColor}">
                     ${this.template.icon || "📄"}
                 </div>
+                
                 <div>
-                   <div class="flex items-center gap-2 mb-2">
-                      <span class="text-[10px] font-bold uppercase tracking-widest text-slate-400 bg-white border border-slate-200 px-2 py-0.5 rounded shadow-sm">
+                   <div class="flex items-center gap-2 mb-1">
+                      <span class="text-[10px] font-bold uppercase tracking-widest text-slate-400 bg-white border border-slate-200 px-1.5 py-0.5 rounded shadow-sm">
                         ${this.template.name}
                       </span>
                    </div>
-                   <h1 class="text-3xl font-bold text-slate-900 leading-tight mb-2">${
+                   <h1 class="text-2xl font-bold text-slate-900 leading-tight mb-1">${
                      this.document.metadata.title
                    }</h1>
-                   <p class="text-xs text-slate-400 flex items-center gap-4 font-mono">
+                   <p class="text-[11px] text-slate-400 flex items-center gap-3 font-mono">
                       <span><i class="far fa-clock mr-1"></i> ${updatedAt}</span>
                       <span class="text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded"><i class="fas fa-shield-alt mr-1"></i> E2EE</span>
                    </p>
@@ -242,7 +242,7 @@ export class DocumentViewer {
              </div>
         </div>
 
-        <div class="p-8 sm:p-10">
+        <div class="p-4 sm:p-5">
            ${contentHtml}
         </div>
       </div>
@@ -354,6 +354,15 @@ export class DocumentViewer {
   setupContentListeners() {
     // Listeners de tabs
     const container = document.getElementById("documentViewerPlaceholder");
+
+    // Ejecutar postRender de todos los viewers (necesario para SecretViewer, etc.)
+    if (this.viewersInstanceCache && this.viewersInstanceCache.length > 0) {
+      this.viewersInstanceCache.forEach((viewer) => {
+        // Pasamos el container para que el viewer busque su ID único dentro de él
+        viewer.postRender(container);
+      });
+    }
+
     const tabTriggers = container.querySelectorAll(".viewer-tab-trigger");
     const groupContainers = container.querySelectorAll(
       ".viewer-group-container"

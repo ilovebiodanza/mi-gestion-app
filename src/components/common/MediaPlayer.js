@@ -15,6 +15,16 @@ export class MediaPlayer {
     this.isRendered = false;
   }
 
+  // --- MÉTODOS PÚBLICOS AGREGADOS PARA CORREGIR EL ERROR ---
+  playAudio(url, title) {
+    this.open("audio", url, title);
+  }
+
+  viewImage(url, title) {
+    this.open("image", url, title);
+  }
+  // ---------------------------------------------------------
+
   // Inyecta el HTML base en el DOM (solo una vez)
   renderBase() {
     if (document.getElementById(this.widgetId)) return;
@@ -63,25 +73,23 @@ export class MediaPlayer {
     document.body.insertAdjacentHTML("beforeend", widgetHtml + modalHtml);
 
     // --- Listeners Widget ---
-    document
-      .getElementById("close-global-player")
-      .addEventListener("click", () => this.closeWidget());
+    const closeWidgetBtn = document.getElementById("close-global-player");
+    if (closeWidgetBtn) {
+      closeWidgetBtn.addEventListener("click", () => this.closeWidget());
+    }
 
     // --- Listeners Modal ---
     const closeFn = () => this.closeModal();
-    document
-      .getElementById(`${this.modalId}-close`)
-      .addEventListener("click", closeFn);
-    document
-      .getElementById(`${this.modalId}-backdrop`)
-      .addEventListener("click", closeFn);
+    const closeModalBtn = document.getElementById(`${this.modalId}-close`);
+    const backdrop = document.getElementById(`${this.modalId}-backdrop`);
+
+    if (closeModalBtn) closeModalBtn.addEventListener("click", closeFn);
+    if (backdrop) backdrop.addEventListener("click", closeFn);
 
     // Cerrar con tecla ESC
     document.addEventListener("keydown", (e) => {
-      if (
-        e.key === "Escape" &&
-        !document.getElementById(this.modalId).classList.contains("hidden")
-      ) {
+      const modal = document.getElementById(this.modalId);
+      if (e.key === "Escape" && modal && !modal.classList.contains("hidden")) {
         this.closeModal();
       }
     });
@@ -107,6 +115,8 @@ export class MediaPlayer {
     const container = document.getElementById(this.widgetId);
     const content = document.getElementById(this.widgetContentId);
     const titleEl = document.getElementById(this.widgetTitleId);
+
+    if (!container || !content) return;
 
     titleEl.textContent = title || "Reproduciendo Audio";
     content.innerHTML = "";
@@ -141,7 +151,8 @@ export class MediaPlayer {
     container.classList.add("translate-y-4", "opacity-0");
     setTimeout(() => {
       container.classList.add("hidden");
-      document.getElementById(this.widgetContentId).innerHTML = "";
+      const content = document.getElementById(this.widgetContentId);
+      if (content) content.innerHTML = "";
     }, 300);
   }
 
@@ -154,8 +165,10 @@ export class MediaPlayer {
     const titleEl = document.getElementById(this.modalTitleId);
     const linkBtn = document.getElementById(`${this.modalId}-link`);
 
+    if (!modal) return;
+
     titleEl.textContent = title || "Imagen Adjunta";
-    linkBtn.href = url; // Actualizamos el botón de "Abrir original"
+    if (linkBtn) linkBtn.href = url;
 
     content.innerHTML = `
         <img src="${url}" 
@@ -187,7 +200,8 @@ export class MediaPlayer {
 
     setTimeout(() => {
       modal.classList.add("hidden");
-      document.getElementById(this.modalContentId).innerHTML = "";
+      const content = document.getElementById(this.modalContentId);
+      if (content) content.innerHTML = "";
     }, 300);
   }
 }
