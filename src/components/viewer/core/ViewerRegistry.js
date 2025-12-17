@@ -4,7 +4,9 @@ import { BooleanViewer } from "./fields/BooleanViewer.js";
 import { UrlViewer } from "./fields/UrlViewer.js";
 import { SecretViewer } from "./fields/SecretViewer.js";
 import { TableViewer } from "./fields/TableViewer.js";
-// Importa aquí otros tipos según los crees (Number, Currency, etc)
+import { NumberViewer } from "./fields/NumberViewer.js";
+import { CurrencyViewer } from "./fields/CurrencyViewer.js";
+import { PercentageViewer } from "./fields/PercentageViewer.js";
 
 const registry = {
   text: TextViewer,
@@ -13,9 +15,9 @@ const registry = {
   url: UrlViewer,
   secret: SecretViewer,
   table: TableViewer,
-  number: TextViewer,
-  currency: TextViewer, // Placeholder hasta crear CurrencyViewer
-  percentage: TextViewer, // Placeholder hasta crear PercentageViewer
+  number: NumberViewer,
+  currency: CurrencyViewer,
+  percentage: PercentageViewer,
 };
 
 export class ViewerRegistry {
