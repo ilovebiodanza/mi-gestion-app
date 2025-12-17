@@ -13,6 +13,7 @@ const registry = {
   url: UrlViewer,
   secret: SecretViewer,
   table: TableViewer,
+  number: TextViewer,
   currency: TextViewer, // Placeholder hasta crear CurrencyViewer
   percentage: TextViewer, // Placeholder hasta crear PercentageViewer
 };

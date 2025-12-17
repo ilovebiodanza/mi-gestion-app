@@ -24,8 +24,8 @@ export function renderCellPreview(col, val) {
   if (col.type === "secret") {
     return '<span class="text-slate-400 text-xs tracking-widest">••••••</span>';
   }
-  if (["currency", "percentage"].includes(col.type)) {
-    return `<span class="font-mono text-xs text-slate-700 font-bold">${val}${
+  if (["currency", "percentage", "number"].includes(col.type)) {
+    return `<span class="font-mono text-xs text-slate-700 font-bold"  data-raw-value="${val}">${val}${
       col.type === "percentage" ? "%" : ""
     }</span>`;
   }

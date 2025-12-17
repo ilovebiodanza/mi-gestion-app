@@ -5,25 +5,23 @@ export class NumberField extends AbstractField {
   constructor(def, value, options) {
     super(def, value, options);
     this.activeMenu = null;
-    this.blurTimer = null; // Nueva propiedad para controlar el cierre
+    this.blurTimer = null;
     this.handleScroll = this.removeMenu.bind(this);
   }
 
   renderInput() {
     const isCurrency = this.def.type === "currency";
-
-    // Icono Moneda (Izquierda)
     const leftIcon = isCurrency
       ? '<i class="fas fa-dollar-sign absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"></i>'
       : "";
     const paddingLeft = isCurrency ? "pl-10" : "pl-4";
 
-    // Botón Lista (Derecha)
     const rightButton = `
       <button type="button" 
               class="suggestion-trigger absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-slate-100 transition-colors z-10" 
               title="Insertar valor de otros campos"
-              tabindex="-1"> <i class="fas fa-list-ul text-xs"></i>
+              tabindex="-1">
+          <i class="fas fa-list-ul text-xs"></i>
       </button>`;
 
     return `
@@ -48,22 +46,16 @@ export class NumberField extends AbstractField {
     super.postRender(container);
 
     if (this.domElement) {
-      // 1. Vincular el Botón de Lista (CORREGIDO)
+      // 1. Vincular el Botón (Mousedown para evitar blur prematuro)
       const wrapper = this.domElement.parentElement;
       const triggerBtn = wrapper.querySelector(".suggestion-trigger");
 
       if (triggerBtn) {
-        // Usamos 'mousedown' en vez de 'click'
         triggerBtn.addEventListener("mousedown", (e) => {
-          // CLAVE: Esto evita que el input pierda el foco (blur) al hacer clic en el botón
           e.preventDefault();
-
-          // Si por alguna razón no tenía foco (clic directo desde fuera), se lo damos
           if (document.activeElement !== this.domElement) {
             this.domElement.focus();
           }
-
-          // Si el menú ya está abierto, lo cerramos (toggle). Si no, lo abrimos.
           if (this.activeMenu) {
             this.removeMenu();
           } else {
@@ -72,10 +64,9 @@ export class NumberField extends AbstractField {
         });
       }
 
-      // 2. BLUR (Controlado)
+      // 2. BLUR
       this.domElement.addEventListener("blur", (e) => {
         this.evaluateMath();
-        // Guardamos la referencia del timer para poder cancelarlo si fuera necesario
         this.blurTimer = setTimeout(() => this.removeMenu(), 200);
       });
 
@@ -101,7 +92,6 @@ export class NumberField extends AbstractField {
   }
 
   showSuggestions() {
-    // Seguridad: Cancelar cualquier cierre pendiente (por si acaso hubo un blur milisegundos antes)
     if (this.blurTimer) {
       clearTimeout(this.blurTimer);
       this.blurTimer = null;
@@ -154,6 +144,7 @@ export class NumberField extends AbstractField {
     const allInputs = document.querySelectorAll(".js-number-input");
     allInputs.forEach((input) => {
       if (input === this.domElement || !input.value.trim()) return;
+      // Ignoramos inputs que estén dentro de tablas para no duplicar lógica
       if (input.closest("table")) return;
 
       let labelText = this.findLabelForInput(input);
@@ -190,11 +181,14 @@ export class NumberField extends AbstractField {
     return labelText.replace(/[:*]/g, "").trim();
   }
 
+  // --- LÓGICA ESTRICTA PARA TABLAS (Solo data-raw-value) ---
   collectTableSums() {
     const tablesData = [];
     const tables = document.querySelectorAll("table");
+
     tables.forEach((table) => {
       let tableName = "Tabla de Datos";
+      // Búsqueda del nombre de la tabla (Table -> Parent -> Parent -> Parent -> Label)
       const p1 = table.parentElement;
       const p2 = p1?.parentElement;
       const p3 = p2?.parentElement;
@@ -208,41 +202,29 @@ export class NumberField extends AbstractField {
       if (rows.length === 0) return;
 
       const columnsSums = [];
+
       headers.forEach((th, colIndex) => {
         let sum = 0;
         let count = 0;
-        let isDateColumn = false;
-
-        for (let i = 0; i < Math.min(rows.length, 3); i++) {
-          const cell = rows[i].querySelectorAll("td")[colIndex];
-          if (cell) {
-            const text = cell.innerText.trim();
-            if (/^\d{1,2}[\/-]\d{1,2}[\/-]\d{2,4}/.test(text)) {
-              isDateColumn = true;
-              break;
-            }
-          }
-        }
-        if (isDateColumn) return;
 
         rows.forEach((row) => {
           const cells = row.querySelectorAll("td");
           if (cells[colIndex]) {
             const cell = cells[colIndex];
             let val = null;
+
+            // LÓGICA ESTRICTA: Solo buscamos elementos con data-raw-value
+            // No leemos inputs, no leemos innerText.
             const rawElement = cell.querySelector("[data-raw-value]");
+
             if (rawElement) {
               const raw = rawElement.getAttribute("data-raw-value");
+              // Validación estricta de que el valor exista
               if (raw && raw !== "null" && raw !== "undefined" && raw !== "") {
                 val = parseFloat(raw);
               }
-            } else if (cell.querySelector("input")) {
-              const input = cell.querySelector("input");
-              if (input.value) val = parseFloat(input.value);
-            } else {
-              const text = cell.innerText.trim();
-              if (text) val = this.parseLocaleNumber(text);
             }
+
             if (val !== null && !isNaN(val)) {
               sum += val;
               count++;
@@ -250,6 +232,7 @@ export class NumberField extends AbstractField {
           }
         });
 
+        // Si la columna tiene sumatorias válidas y un título
         if (count > 0 && th.innerText.trim() && th.innerText.trim() !== "#") {
           const total = Math.round(sum * 100) / 100;
           if (total !== 0) {
@@ -260,27 +243,13 @@ export class NumberField extends AbstractField {
           }
         }
       });
+
       if (columnsSums.length > 0) {
         tablesData.push({ tableName: tableName, columns: columnsSums });
       }
     });
-    return tablesData;
-  }
 
-  parseLocaleNumber(stringNumber) {
-    if (!stringNumber) return null;
-    let clean = stringNumber.replace(/[^\d.,-]/g, "");
-    if (clean.indexOf(",") > -1 && clean.indexOf(".") > -1) {
-      if (clean.indexOf(",") > clean.indexOf(".")) {
-        clean = clean.replace(/\./g, "").replace(",", ".");
-      } else {
-        clean = clean.replace(/,/g, "");
-      }
-    } else if (clean.indexOf(",") > -1) {
-      clean = clean.replace(",", ".");
-    }
-    const val = parseFloat(clean);
-    return isNaN(val) ? null : val;
+    return tablesData;
   }
 
   renderSectionHeader(container, title) {
@@ -354,7 +323,6 @@ export class NumberField extends AbstractField {
       this.activeMenu.remove();
       this.activeMenu = null;
     }
-    // También limpiamos el timer por limpieza general
     if (this.blurTimer) {
       clearTimeout(this.blurTimer);
       this.blurTimer = null;
