@@ -4,6 +4,10 @@ export class TextViewer extends AbstractViewer {
   render(isTableContext = false) {
     if (this.isEmpty()) return this.renderEmpty();
 
+    if (this.field.type === "number") {
+      return `<span class="font-mono font-bold text-slate-700" data-raw-value="${this.value}">${this.value}</span>`;
+    }
+
     if (this.field.type === "currency" && this.options.currencyConfig) {
       // Lógica simple de moneda integrada aquí o en su propia clase CurrencyViewer
       const formatted = new Intl.NumberFormat(
@@ -13,11 +17,11 @@ export class TextViewer extends AbstractViewer {
           currency: this.options.currencyConfig.codigo,
         }
       ).format(Number(this.value));
-      return `<span class="font-mono font-bold text-slate-700 bg-slate-50 px-2 py-0.5 rounded border border-slate-100">${formatted}</span>`;
+      return `<span class="font-mono font-bold text-slate-700 bg-slate-50 px-2 py-0.5 rounded border border-slate-100" data-raw-value="${this.value}">${formatted}</span>`;
     }
 
     if (this.field.type === "percentage") {
-      return `<span class="font-mono font-bold text-slate-700">${this.value}%</span>`;
+      return `<span class="font-mono font-bold text-slate-700" data-raw-value="${this.value}">${this.value}%</span>`;
     }
 
     if (isTableContext) {
