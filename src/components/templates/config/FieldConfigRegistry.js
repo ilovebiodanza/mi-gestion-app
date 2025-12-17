@@ -6,6 +6,7 @@ import { SelectFieldConfig } from "./fields/SelectFieldConfig.js";
 import { SeparatorFieldConfig } from "./fields/SeparatorFieldConfig.js";
 import { TableFieldConfig } from "./fields/TableFieldConfig.js";
 import { TextFieldConfig } from "./fields/TextFieldConfig.js";
+import { CurrencyFieldConfig } from "./fields/CurrencyFieldConfig.js";
 
 class FieldConfigRegistry {
   constructor() {
@@ -23,11 +24,9 @@ class FieldConfigRegistry {
     this.register("select", SelectFieldConfig);
     this.register("separator", SeparatorFieldConfig);
     this.register("table", TableFieldConfig);
-
+    this.register("currency", CurrencyFieldConfig);
     this.register("string", TextFieldConfig);
-    this.register("text", TextFieldConfig); // Asumiendo que 'textarea' es la clave para texto largo
-
-    // El 'default' actuará como fallback para text, number, date, url, etc.
+    this.register("text", TextFieldConfig);
     this.register("default", GenericFieldConfig);
   }
 

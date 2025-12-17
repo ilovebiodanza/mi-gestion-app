@@ -11,10 +11,18 @@ export class NumberField extends AbstractField {
 
   renderInput() {
     const isCurrency = this.def.type === "currency";
+
+    // --- NUEVO: Obtenemos el símbolo configurado o usamos $ por defecto ---
+    const currencySymbol = this.def.currencySymbol || "$";
+
+    // --- NUEVO: Renderizamos texto (span) en lugar de ícono (i) ---
+    // Usamos 'select-none' para que no moleste al seleccionar texto y font-bold para que destaque.
     const leftIcon = isCurrency
-      ? '<i class="fas fa-dollar-sign absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"></i>'
+      ? `<span class="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 font-bold select-none text-sm pointer-events-none">${currencySymbol}</span>`
       : "";
-    const paddingLeft = isCurrency ? "pl-10" : "pl-4";
+
+    // Ajustamos el padding izquierdo un poco más (pl-12) para dar espacio si el símbolo es largo (ej. "USD")
+    const paddingLeft = isCurrency ? "pl-12" : "pl-4";
 
     const rightButton = `
       <button type="button" 
