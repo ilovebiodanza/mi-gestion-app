@@ -102,18 +102,18 @@ export class TableFieldController extends AbstractField {
           <td class="block md:table-cell px-4 py-3 md:py-3 text-right md:text-center align-middle whitespace-nowrap bg-slate-50 md:bg-transparent rounded-b-xl md:rounded-none border-t md:border-none border-slate-100">
              <div class="flex items-center justify-end md:justify-center gap-1">
                  
+                 <button type="button" class="edit-btn w-8 h-8 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors" data-index="${index}" title="Editar">
+                    <i class="fas fa-pencil-alt text-xs"></i>
+                 </button>
+                 
+                 <button type="button" class="remove-btn w-8 h-8 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors" data-index="${index}" title="Eliminar">
+                    <i class="fas fa-trash-alt text-xs"></i>
+                 </button>
+
                  <button type="button" class="drag-handle w-8 h-8 rounded-lg text-slate-300 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-move" title="Mover">
                     <i class="fas fa-grip-vertical text-xs"></i>
                  </button>
 
-                 <div class="w-px h-4 bg-slate-200 mx-1"></div>
-
-                 <button type="button" class="edit-btn w-8 h-8 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors" data-index="${index}" title="Editar">
-                    <i class="fas fa-pencil-alt text-xs"></i>
-                 </button>
-                 <button type="button" class="remove-btn w-8 h-8 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors" data-index="${index}" title="Eliminar">
-                    <i class="fas fa-trash-alt text-xs"></i>
-                 </button>
              </div>
           </td>`;
 
