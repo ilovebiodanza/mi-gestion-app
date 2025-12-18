@@ -99,7 +99,7 @@ export const getCategoryIcon = (category) => {
     personal: "👤",
     access: "🔐",
     financial: "💳",
-    health: "❤️",
+    health: "⚕️",
     home: "🏠",
     car: "🚗",
     job: "💼",

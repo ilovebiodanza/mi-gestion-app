@@ -10,6 +10,7 @@ export class TableFieldController extends AbstractField {
     this.wrapperId = `table-wrapper-${this.def.id}`;
     this.tbodyId = `tbody-${this.def.id}`;
     this.fileInputId = `csv-input-${this.def.id}`;
+    this.sortable = null; // Referencia para la instancia de Sortable
   }
 
   renderInput() {
@@ -48,7 +49,7 @@ export class TableFieldController extends AbstractField {
             <thead class="bg-slate-50 hidden md:table-header-group sticky top-0 z-10 shadow-sm">
               <tr>
                 ${headers}
-                <th class="w-20 px-4 py-2 text-center text-xs font-bold text-slate-500 uppercase hidden md:table-cell bg-slate-50 border-b border-slate-200">Acciones</th>
+                <th class="w-24 px-4 py-2 text-center text-xs font-bold text-slate-500 uppercase hidden md:table-cell bg-slate-50 border-b border-slate-200">Acciones</th>
               </tr>
             </thead>
 
@@ -96,9 +97,17 @@ export class TableFieldController extends AbstractField {
           })
           .join("");
 
+        // CAMBIO: Añadido el botón de drag-handle
         const actions = `
           <td class="block md:table-cell px-4 py-3 md:py-3 text-right md:text-center align-middle whitespace-nowrap bg-slate-50 md:bg-transparent rounded-b-xl md:rounded-none border-t md:border-none border-slate-100">
-             <div class="flex items-center justify-end md:justify-center gap-2">
+             <div class="flex items-center justify-end md:justify-center gap-1">
+                 
+                 <button type="button" class="drag-handle w-8 h-8 rounded-lg text-slate-300 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-move" title="Mover">
+                    <i class="fas fa-grip-vertical text-xs"></i>
+                 </button>
+
+                 <div class="w-px h-4 bg-slate-200 mx-1"></div>
+
                  <button type="button" class="edit-btn w-8 h-8 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors" data-index="${index}" title="Editar">
                     <i class="fas fa-pencil-alt text-xs"></i>
                  </button>
@@ -109,7 +118,7 @@ export class TableFieldController extends AbstractField {
           </td>`;
 
         return `
-        <tr class="block md:table-row bg-white md:hover:bg-slate-50 transition-colors group rounded-xl shadow-sm md:shadow-none border border-slate-200 md:border-none mb-4 md:mb-0">
+        <tr class="block md:table-row bg-white md:hover:bg-slate-50 transition-colors group rounded-xl shadow-sm md:shadow-none border border-slate-200 md:border-none mb-4 md:mb-0" data-id="${index}">
           ${cells}
           ${actions}
         </tr>`;
@@ -124,6 +133,34 @@ export class TableFieldController extends AbstractField {
     if (!myWrapper) return;
 
     this.tbody = myWrapper.querySelector(`#${this.tbodyId}`);
+
+    // --- INTEGRACIÓN SORTABLEJS ---
+    // Verificamos si existe la librería global (cargada en index.html)
+    if (this.tbody && window.Sortable) {
+      this.sortable = new Sortable(this.tbody, {
+        handle: ".drag-handle", // Solo se puede arrastrar desde el icono
+        animation: 150,
+        ghostClass: "bg-indigo-50", // Color de fondo mientras se arrastra
+        onEnd: (evt) => {
+          // Lógica de reordenamiento del array
+          const oldIndex = evt.oldIndex;
+          const newIndex = evt.newIndex;
+
+          if (oldIndex !== newIndex) {
+            // Mover el elemento en el array de datos
+            const movedItem = this.value.splice(oldIndex, 1)[0];
+            this.value.splice(newIndex, 0, movedItem);
+
+            // IMPORTANTE: Volver a renderizar.
+            // Aunque Sortable mueve el DOM visualmente, necesitamos regenerar
+            // la tabla para que los botones 'data-index' (editar/borrar)
+            // apunten a los nuevos índices correctos del array.
+            this.updateAndRender();
+          }
+        },
+      });
+    }
+    // ------------------------------
 
     // Listeners principales
     myWrapper.querySelector(`.add-row-btn`)?.addEventListener("click", (e) => {
@@ -163,7 +200,7 @@ export class TableFieldController extends AbstractField {
     });
   }
 
-  // --- LÓGICA CSV AVANZADA (Propuesta Implementada) ---
+  // --- LÓGICA CSV (Se mantiene igual) ---
 
   exportCSV() {
     if (this.value.length === 0) {
@@ -171,25 +208,21 @@ export class TableFieldController extends AbstractField {
       return;
     }
 
-    // 1. Construir Cabeceras Dinámicas (Separando URLs)
     const csvHeaders = [];
     const colMappings = [];
 
     this.columns.forEach((col) => {
       if (col.type === "url") {
-        // Desdoblamiento para URLs
         csvHeaders.push(`"${col.label} (URL)"`);
         csvHeaders.push(`"${col.label} (Texto)"`);
         colMappings.push({ id: col.id, type: "url", prop: "url" });
         colMappings.push({ id: col.id, type: "url", prop: "text" });
       } else {
-        // Columna Normal
         csvHeaders.push(`"${col.label.replace(/"/g, '""')}"`);
         colMappings.push({ id: col.id, type: "simple" });
       }
     });
 
-    // 2. Construir Filas
     const rows = this.value
       .map((row) => {
         return colMappings
@@ -198,7 +231,6 @@ export class TableFieldController extends AbstractField {
 
             if (map.type === "url") {
               if (!rawVal) return '""';
-              // Normalizamos: puede venir como objeto o como string simple
               const valObj =
                 typeof rawVal === "object"
                   ? rawVal
@@ -218,7 +250,6 @@ export class TableFieldController extends AbstractField {
 
     const csvContent = `${csvHeaders.join(",")}\n${rows}`;
 
-    // 3. Descargar
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
@@ -243,16 +274,13 @@ export class TableFieldController extends AbstractField {
           throw new Error("El archivo CSV parece estar vacío.");
 
         const headers = this.parseCSVLine(rows[0]);
-
-        // MAPEO INTELIGENTE: Cabecera CSV -> Columna Tabla
         const colMap = {};
 
         this.columns.forEach((col) => {
           if (col.type === "url") {
-            // Buscamos las columnas desdobladas
             const urlHeader = `${col.label} (URL)`.toLowerCase();
             const textHeader = `${col.label} (Texto)`.toLowerCase();
-            const simpleHeader = col.label.toLowerCase(); // Compatibilidad
+            const simpleHeader = col.label.toLowerCase();
 
             const uIdx = headers.findIndex(
               (h) => h.toLowerCase().trim() === urlHeader
@@ -268,11 +296,10 @@ export class TableFieldController extends AbstractField {
               colMap[col.id] = {
                 type: "url",
                 urlIdx: uIdx !== -1 ? uIdx : sIdx,
-                textIdx: tIdx, // Puede ser -1 si no existe
+                textIdx: tIdx,
               };
             }
           } else {
-            // Búsqueda normal
             const idx = headers.findIndex(
               (h) => h.toLowerCase().trim() === col.label.toLowerCase()
             );
@@ -282,8 +309,6 @@ export class TableFieldController extends AbstractField {
           }
         });
 
-        // Si no encontramos NADA por nombre, intentamos mapeo por orden posicional (Fallback)
-        // (Asumiendo que el usuario no tocó las columnas)
         if (Object.keys(colMap).length === 0) {
           console.warn(
             "Importando por orden posicional (headers no coinciden)."
@@ -306,7 +331,6 @@ export class TableFieldController extends AbstractField {
 
         const newRecords = [];
 
-        // Procesar Filas
         for (let i = 1; i < rows.length; i++) {
           const values = this.parseCSVLine(rows[i]);
           const record = {};
@@ -320,7 +344,6 @@ export class TableFieldController extends AbstractField {
               const tVal = map.textIdx !== -1 ? values[map.textIdx] : "";
 
               if (uVal) {
-                // Reconstruimos el objeto
                 record[colId] = { url: uVal, text: tVal || uVal };
                 hasData = true;
               }
@@ -351,7 +374,6 @@ export class TableFieldController extends AbstractField {
     reader.readAsText(file);
   }
 
-  // Parser simple que respeta comillas
   parseCSVLine(text) {
     const re_value =
       /(?!\s*$)\s*(?:'([^']*)'|"([^"]*)"|([^,'"\s\\]*(?:\s+[^,'"\s\\]+)*))\s*(?:,|$)/g;
@@ -364,8 +386,6 @@ export class TableFieldController extends AbstractField {
     }
     return values;
   }
-
-  // --- CRUD BASICO (Sin Cambios) ---
 
   removeRow(index) {
     this.value.splice(index, 1);
