@@ -2,12 +2,17 @@
 
 export class PasswordPrompt {
   constructor(onSubmit, email) {
-    this.onSubmit = onSubmit; // Debe retornar true si tuvo éxito
+    this.onSubmit = onSubmit;
     this.email = email || "Usuario";
   }
 
   show() {
     if (document.getElementById("passwordPromptModal")) return;
+
+    // ESTRATEGIA ANTI-GESTOR DE CONTRASEÑAS:
+    // 1. autocomplete="off" en el form.
+    // 2. name="vault_unlock_code" en el input (evita nombres como 'password' o 'login').
+    // 3. autocomplete="new-password" (a veces engaña al navegador pensando que es un registro, no un login).
 
     const modalHtml = `
       <div id="passwordPromptModal" class="fixed inset-0 z-[70] flex items-center justify-center p-4">
@@ -25,14 +30,20 @@ export class PasswordPrompt {
               Ingresa tu <strong>Llave Maestra</strong> para descifrar los datos de <span class="font-medium text-slate-700">${this.email}</span>.
             </p>
 
-            <form id="passwordPromptForm">
-              <div class="relative mb-4 group">
-                <input type="password" id="ppmPassword" 
-                  class="w-full px-4 py-3 bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:border-brand-600 focus:ring-4 focus:ring-brand-600/10 outline-none transition-all font-mono text-sm text-center tracking-widest text-slate-800 placeholder-slate-400"
-                  placeholder="••••••••" required autofocus>
+            <form id="passwordPromptForm" autocomplete="off">
+              <div class="relative mb-4 group text-left">
+                
+                <input type="password" id="ppmPassword" name="vault_unlock_code"
+                  class="w-full px-4 py-3 bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:border-brand-600 focus:ring-4 focus:ring-brand-600/10 outline-none transition-all font-mono text-sm text-center tracking-widest text-slate-800 placeholder-slate-400 pr-10"
+                  placeholder="••••••••" required autofocus autocomplete="off" spellcheck="false">
+                
+                <button type="button" id="ppmTogglePass" class="absolute inset-y-0 right-0 pr-3 flex items-center cursor-pointer text-slate-400 hover:text-brand-600 transition-colors focus:outline-none" tabindex="-1">
+                    <i class="fas fa-eye"></i>
+                </button>
+
               </div>
 
-              <div id="ppmError" class="hidden text-xs text-red-500 font-bold mb-3 bg-red-50 py-2 rounded-lg border border-red-100">
+              <div id="ppmError" class="hidden text-xs text-red-500 font-bold mb-3 bg-red-50 py-2 rounded-lg border border-red-100 text-center">
                 <i class="fas fa-times-circle mr-1"></i> Contraseña incorrecta
               </div>
 
@@ -55,7 +66,7 @@ export class PasswordPrompt {
 
     document.body.insertAdjacentHTML("beforeend", modalHtml);
 
-    // Animación
+    // Animación de entrada
     requestAnimationFrame(() => {
       document.getElementById("ppmBackdrop").classList.remove("opacity-0");
       const card = document.getElementById("ppmCard");
@@ -69,6 +80,8 @@ export class PasswordPrompt {
 
   setupListeners() {
     const form = document.getElementById("passwordPromptForm");
+    const passwordInput = document.getElementById("ppmPassword"); // Elemento Input
+    const toggleBtn = document.getElementById("ppmTogglePass"); // Elemento Botón Ojo
     const errorMsg = document.getElementById("ppmError");
     const btn = document.getElementById("ppmSubmitBtn");
     const cancelBtn = document.getElementById("ppmCancelBtn");
@@ -77,11 +90,33 @@ export class PasswordPrompt {
       document.getElementById("passwordPromptModal")?.remove();
     };
 
+    // 1. Lógica del Ojito (Ver/Ocultar)
+    if (toggleBtn && passwordInput) {
+      toggleBtn.onclick = (e) => {
+        e.preventDefault(); // Evita submit accidental
+        e.stopPropagation(); // Evita propagación
+
+        const type =
+          passwordInput.getAttribute("type") === "password"
+            ? "text"
+            : "password";
+        passwordInput.setAttribute("type", type);
+
+        const icon = toggleBtn.querySelector("i");
+        // Usamos las clases de FontAwesome para ojo abierto/tachado
+        icon.classList.toggle("fa-eye");
+        icon.classList.toggle("fa-eye-slash");
+
+        // Mantener el foco en el input para seguir escribiendo
+        passwordInput.focus();
+      };
+    }
+
     cancelBtn?.addEventListener("click", close);
 
     form?.addEventListener("submit", async (e) => {
       e.preventDefault();
-      const password = document.getElementById("ppmPassword").value;
+      const password = passwordInput.value;
 
       // UI Loading
       const originalText = btn.innerHTML;
@@ -96,10 +131,10 @@ export class PasswordPrompt {
         } else {
           // Error visual shake
           const card = document.getElementById("ppmCard");
-          card.classList.add("animate-pulse"); // Simple shake fallback
+          card.classList.add("animate-pulse");
           errorMsg.classList.remove("hidden");
-          document.getElementById("ppmPassword").value = "";
-          document.getElementById("ppmPassword").focus();
+          passwordInput.value = "";
+          passwordInput.focus();
 
           // Reset UI
           btn.innerHTML = originalText;
