@@ -62,12 +62,19 @@ export const printDocument = (
   const lineHeight = isAccessible ? "1.4" : "1.5";
   const fontFamily = isAccessible ? "Arial, sans-serif" : "'Inter', sans-serif";
 
+  // --- NUEVA LÓGICA DE NOMBRE DE ARCHIVO ---
+  // Formato: Mi Gestión - NombrePlantilla - TituloDocumento
+  const docTitle = documentMetadata.title || "Sin Título";
+  const tplName = template.name || "Documento";
+  // Sanitizamos un poco para evitar caracteres extraños, aunque el navegador suele manejarlo.
+  const printTitle = `Mi Gestión - ${tplName} - ${docTitle}`;
+
   const fullHtml = `
         <!DOCTYPE html>
         <html lang="es">
         <head>
             <meta charset="UTF-8">
-            <title>${documentMetadata.title || "Impresión"}</title>
+            <title>${printTitle}</title> 
             <script src="https://cdn.tailwindcss.com"></script>
             <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
             <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
