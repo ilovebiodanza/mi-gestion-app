@@ -101,7 +101,7 @@ const FIELD_TYPES = [
   // --- Estructurales ---
   {
     value: "separator",
-    label: "--- SEPARADOR / TÍTULO ---",
+    label: "Sección-----",
     inputType: "separator",
     icon: "fas fa-heading",
     description: "Divisor visual para organizar secciones.",

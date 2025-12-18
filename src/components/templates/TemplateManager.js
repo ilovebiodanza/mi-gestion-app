@@ -1,7 +1,6 @@
 // src/components/TemplateManager.js
 
 import { templateService } from "../../services/templates/index.js";
-// 👇 IMPORTANTE: Añadir esta importación
 import { documentService } from "../../services/documents/index.js";
 import { TemplateList } from "./TemplateList.js";
 import { TemplateForm } from "./TemplateForm.js";
