@@ -1,190 +1,365 @@
-// src/components/VaultSetupModal.js
+// src/components/SettingsManager.js
+import { backupService } from "../services/backup/index.js";
 import { authService } from "../services/auth.js";
+import { encryptionService } from "../services/encryption/index.js";
+import { PasswordPrompt } from "./PasswordPrompt.js";
 import { toast } from "./Toast.js";
 
-export class VaultSetupModal {
-  constructor(onSuccess) {
-    this.onSuccess = onSuccess;
-  }
-
-  show() {
-    if (document.getElementById("vaultSetupModal")) return;
-
-    const modalHtml = `
-      <div id="vaultSetupModal" class="fixed inset-0 z-[80] flex items-center justify-center p-4">
-        <div class="absolute inset-0 bg-slate-900/90 backdrop-blur-sm transition-opacity opacity-0" id="vsmBackdrop"></div>
+export class SettingsManager {
+  render() {
+    return `
+      <div class="max-w-4xl mx-auto space-y-6 animate-fade-in pb-20">
         
-        <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden transform scale-95 opacity-0 transition-all duration-300" id="vsmCard">
-          
-          <div class="bg-slate-50 px-6 py-6 border-b border-slate-100 text-center">
-            <div class="w-16 h-16 bg-white rounded-2xl flex items-center justify-center mx-auto mb-4 text-brand-600 shadow-sm border border-slate-100">
-              <i class="fas fa-shield-halved text-3xl"></i>
+        <div class="mb-8">
+            <h2 class="text-2xl font-bold text-slate-900 tracking-tight">Configuración de Seguridad</h2>
+            <p class="text-slate-500 text-sm">Gestiona tus claves de acceso y cifrado.</p>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                <div class="px-6 py-4 border-b border-slate-100 flex items-center gap-3">
+                    <div class="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center text-sm border border-blue-100">
+                        <i class="fas fa-user-lock"></i>
+                    </div>
+                    <h3 class="font-bold text-slate-800 text-sm">Acceso (Login)</h3>
+                </div>
+                <div class="p-6">
+                    <form id="changeAccessPassForm" class="space-y-5">
+                        <div class="relative group">
+                            <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Contraseña Actual</label>
+                            <div class="relative">
+                                <input type="password" id="currentAccessPass" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none text-sm pr-10" required>
+                                <button type="button" class="toggle-pass absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-blue-600 cursor-pointer">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div class="relative group">
+                            <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Nueva Contraseña</label>
+                            <div class="relative">
+                                <input type="password" id="newAccessPass" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none text-sm pr-10" required>
+                                <button type="button" class="toggle-pass absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-blue-600 cursor-pointer">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                            </div>
+                            <div id="req-access" class="mt-2 space-y-1 pl-1 hidden"></div>
+                        </div>
+
+                        <button type="submit" id="btnChangeAccess" disabled class="w-full py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold rounded-lg transition text-sm shadow-sm mt-4">
+                            Actualizar Login
+                        </button>
+                    </form>
+                </div>
             </div>
-            <h2 class="text-xl font-bold text-slate-900">Configura tu Bóveda</h2>
-            <p class="text-sm text-slate-500 mt-2 leading-relaxed">
-              Crea una <strong class="text-slate-700">Llave Maestra</strong> única. <br>
-              Esta llave cifrará todos tus documentos. <span class="text-red-500 font-bold">No la pierdas</span>, nosotros no podemos recuperarla.
-            </p>
-          </div>
 
-          <div class="p-8">
-            <form id="vaultSetupForm" autocomplete="off">
-              
-              <div class="mb-6">
-                <label class="block text-xs font-bold text-slate-500 uppercase mb-2 ml-1">
-                  Tu Llave Maestra
-                </label>
-                
-                <div class="relative group">
-                    <input type="password" id="setupMasterKey" 
-                      class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-brand-500 focus:ring-4 focus:ring-brand-500/10 outline-none transition-all text-slate-800 placeholder-slate-400 pr-12 font-mono text-sm"
-                      placeholder="Crea una contraseña fuerte..." required autofocus autocomplete="new-password">
+            <div class="bg-white rounded-xl shadow-sm border border-amber-200 overflow-hidden relative">
+                <div class="px-6 py-4 border-b border-amber-100 bg-amber-50/30 flex items-center gap-3">
+                    <div class="w-8 h-8 rounded-lg bg-amber-100 text-amber-600 flex items-center justify-center text-sm border border-amber-200">
+                        <i class="fas fa-key"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-bold text-slate-800 text-sm">Llave Maestra (E2EE)</h3>
+                    </div>
+                </div>
+                <div class="p-6">
+                    <p class="text-xs text-amber-700 bg-amber-50 p-3 rounded-lg border border-amber-100 mb-4 leading-relaxed font-medium">
+                        <i class="fas fa-exclamation-triangle mr-1"></i> Cambiar esto re-cifrará todos tus documentos.
+                    </p>
                     
-                    <button type="button" id="toggleSetupKey" class="absolute inset-y-0 right-0 pr-4 flex items-center cursor-pointer text-slate-400 hover:text-brand-600 transition-colors focus:outline-none" tabindex="-1">
-                        <i class="fas fa-eye"></i>
+                    <form id="changeVaultPassForm" class="space-y-5">
+                        <div class="relative">
+                            <input type="password" id="currentVaultPass" placeholder="Llave Actual" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 outline-none text-sm font-mono pr-10" required>
+                            <button type="button" class="toggle-pass absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-amber-600 cursor-pointer">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                        </div>
+
+                        <div class="relative">
+                            <input type="password" id="newVaultPass" placeholder="Nueva Llave Maestra" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 outline-none text-sm font-mono pr-10" required>
+                            <button type="button" class="toggle-pass absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-amber-600 cursor-pointer">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                            <div id="req-vault" class="mt-2 space-y-1 pl-1 hidden"></div>
+                        </div>
+
+                        <button type="submit" id="btnChangeVault" disabled class="w-full py-2 bg-amber-600 hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold rounded-lg transition text-sm shadow-sm mt-4">
+                            Re-Cifrar Bóveda
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+            <div class="px-6 py-4 border-b border-slate-100 bg-slate-50/50">
+                <h3 class="font-bold text-slate-800 text-sm flex items-center gap-2">
+                    <i class="fas fa-database text-slate-400"></i> Respaldo y Restauración
+                </h3>
+            </div>
+            
+            <div class="p-6 flex flex-col sm:flex-row gap-6 items-center">
+                <div class="flex-1 w-full">
+                    <button id="btnExport" class="w-full py-3 bg-white border border-slate-200 text-slate-700 hover:border-brand-500 hover:text-brand-600 font-bold rounded-lg transition-all text-sm flex items-center justify-center gap-2 group">
+                        <span class="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center group-hover:bg-brand-50 transition-colors"><i class="fas fa-download text-xs"></i></span>
+                        Descargar Copia Cifrada
                     </button>
+                    <p class="text-[10px] text-slate-400 text-center mt-2">Formato JSON seguro</p>
                 </div>
 
-                <div id="setup-requirements" class="mt-4 space-y-2 pl-1 hidden transition-all duration-300">
-                    <p class="text-xs text-slate-400 flex items-center gap-2 transition-colors" data-req="length">
-                        <i class="fas fa-lock-open text-[10px] w-4 text-center"></i> 8+ caracteres
-                    </p>
-                    <p class="text-xs text-slate-400 flex items-center gap-2 transition-colors" data-req="upper">
-                        <i class="fas fa-lock-open text-[10px] w-4 text-center"></i> Una Mayúscula
-                    </p>
-                    <p class="text-xs text-slate-400 flex items-center gap-2 transition-colors" data-req="lower">
-                        <i class="fas fa-lock-open text-[10px] w-4 text-center"></i> Una Minúscula
-                    </p>
-                    <p class="text-xs text-slate-400 flex items-center gap-2 transition-colors" data-req="number">
-                        <i class="fas fa-lock-open text-[10px] w-4 text-center"></i> Un Número
-                    </p>
-                    <p class="text-xs text-slate-400 flex items-center gap-2 transition-colors" data-req="symbol">
-                        <i class="fas fa-lock-open text-[10px] w-4 text-center"></i> Un Símbolo (!@#$)
-                    </p>
+                <div class="h-px w-full sm:w-px sm:h-12 bg-slate-200"></div>
+
+                <div class="flex-1 w-full">
+                    <div class="flex gap-2">
+                        <input type="file" id="fileImport" accept=".json" class="hidden" />
+                        <button onclick="document.getElementById('fileImport').click()" class="flex-1 py-3 bg-slate-50 border border-slate-200 hover:bg-slate-100 text-slate-600 font-bold rounded-lg transition text-sm">
+                            Elegir Archivo
+                        </button>
+                        <button id="btnRestore" disabled class="px-6 py-3 bg-brand-600 hover:bg-brand-700 disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed text-white font-bold rounded-lg transition text-sm">
+                            Restaurar
+                        </button>
+                    </div>
+                    <div id="restoreStatus" class="mt-2 text-[10px] text-center min-h-[1.2em]"></div>
                 </div>
-              </div>
-
-              <button type="submit" id="btnSetupVault" disabled
-                class="w-full py-3.5 bg-brand-600 hover:bg-brand-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold rounded-xl shadow-lg shadow-brand-500/30 transition-all transform active:scale-95 flex items-center justify-center gap-2">
-                <span>Encriptar Bóveda</span>
-                <i class="fas fa-lock text-xs"></i>
-              </button>
-            </form>
-          </div>
-
+            </div>
         </div>
       </div>
     `;
-
-    document.body.insertAdjacentHTML("beforeend", modalHtml);
-
-    // Animación de entrada
-    requestAnimationFrame(() => {
-      const backdrop = document.getElementById("vsmBackdrop");
-      const card = document.getElementById("vsmCard");
-      if (backdrop && card) {
-        backdrop.classList.remove("opacity-0");
-        card.classList.remove("scale-95", "opacity-0");
-        card.classList.add("scale-100", "opacity-100");
-      }
-    });
-
-    this.setupListeners();
   }
 
-  setupListeners() {
-    const form = document.getElementById("vaultSetupForm");
-    const input = document.getElementById("setupMasterKey");
-    const toggleBtn = document.getElementById("toggleSetupKey");
-    const submitBtn = document.getElementById("btnSetupVault");
-    const reqList = document.getElementById("setup-requirements");
-
-    // 1. Lógica del Ojito (Ver/Ocultar)
-    if (toggleBtn) {
-      toggleBtn.onclick = () => {
-        const type =
-          input.getAttribute("type") === "password" ? "text" : "password";
-        input.setAttribute("type", type);
-
-        const icon = toggleBtn.querySelector("i");
-        icon.classList.toggle("fa-eye");
-        icon.classList.toggle("fa-eye-slash");
-
-        input.focus();
-      };
-    }
-
-    // 2. Validación en Tiempo Real (NIST con Candados)
-    input.addEventListener("input", () => {
-      reqList.classList.remove("hidden");
-      const val = input.value;
-
-      const checks = {
-        length: val.length >= 8,
-        upper: /[A-Z]/.test(val),
-        lower: /[a-z]/.test(val),
-        number: /[0-9]/.test(val),
-        symbol: /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(val),
-      };
-
-      let allValid = true;
-
-      for (const [key, isValid] of Object.entries(checks)) {
-        const el = reqList.querySelector(`[data-req="${key}"]`);
-        const icon = el.querySelector("i");
-
-        if (isValid) {
-          // Requisito Cumplido: Candado cerrado verde
-          el.classList.remove("text-slate-400");
-          el.classList.add("text-emerald-600", "font-medium");
-          icon.className =
-            "fas fa-lock text-emerald-500 text-[10px] w-4 text-center transform scale-110 transition-transform";
-        } else {
-          // Requisito NO Cumplido: Candado abierto rojo/gris
-          el.classList.add("text-slate-400");
-          el.classList.remove("text-emerald-600", "font-medium");
-          icon.className =
-            "fas fa-lock-open text-red-400 text-[10px] w-4 text-center transition-colors";
-          allValid = false;
+  setupEventListeners() {
+    // --- 1. Lógica de "Ojitos" (Visibilidad) Global ---
+    document.querySelectorAll(".toggle-pass").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        const input = btn.previousElementSibling;
+        if (input) {
+          const type =
+            input.getAttribute("type") === "password" ? "text" : "password";
+          input.setAttribute("type", type);
+          const icon = btn.querySelector("i");
+          icon.classList.toggle("fa-eye");
+          icon.classList.toggle("fa-eye-slash");
         }
-      }
-
-      // Habilitar o deshabilitar botón basado en cumplimiento total
-      submitBtn.disabled = !allValid;
+      });
     });
 
-    // 3. Envío del Formulario
-    form.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const password = input.value;
+    // --- 2. Validadores de Complejidad (NIST) ---
+    const renderRequirements = (containerId) => {
+      const container = document.getElementById(containerId);
+      if (!container) return;
+      container.innerHTML = `
+        <p class="text-xs text-slate-400 flex items-center gap-2 transition-colors" data-req="length"><i class="fas fa-lock-open text-[10px] w-3 text-center"></i> 8+ caracteres</p>
+        <p class="text-xs text-slate-400 flex items-center gap-2 transition-colors" data-req="upper"><i class="fas fa-lock-open text-[10px] w-3 text-center"></i> Mayúscula</p>
+        <p class="text-xs text-slate-400 flex items-center gap-2 transition-colors" data-req="lower"><i class="fas fa-lock-open text-[10px] w-3 text-center"></i> Minúscula</p>
+        <p class="text-xs text-slate-400 flex items-center gap-2 transition-colors" data-req="number"><i class="fas fa-lock-open text-[10px] w-3 text-center"></i> Número</p>
+        <p class="text-xs text-slate-400 flex items-center gap-2 transition-colors" data-req="symbol"><i class="fas fa-lock-open text-[10px] w-3 text-center"></i> Símbolo (!@#$)</p>
+      `;
+    };
 
-      // Estado de carga UI
-      const originalHtml = submitBtn.innerHTML;
-      submitBtn.disabled = true;
-      submitBtn.innerHTML = `<i class="fas fa-circle-notch fa-spin"></i> Configurando...`;
+    renderRequirements("req-access");
+    renderRequirements("req-vault");
 
-      try {
-        // Ejecutamos las dos operaciones requeridas
-        // Nota: Si implementaste 'configureVault' en authService usa esa,
-        // si no, mantenemos estas dos líneas que son seguras con tu código actual.
-        await authService.initializeEncryption(password);
-        await authService.markVaultAsConfigured();
+    const setupValidator = (inputId, reqContainerId, btnId) => {
+      const input = document.getElementById(inputId);
+      const container = document.getElementById(reqContainerId);
+      const btn = document.getElementById(btnId);
 
-        toast.show("✅ Bóveda configurada y segura", "success");
+      if (!input || !container || !btn) return;
 
-        this.close();
-        if (this.onSuccess) this.onSuccess();
-      } catch (error) {
-        console.error(error);
-        toast.show(error.message || "Error configurando la bóveda", "error");
-        submitBtn.disabled = false;
-        submitBtn.innerHTML = originalHtml;
+      input.addEventListener("input", () => {
+        const val = input.value;
+        container.classList.remove("hidden");
+
+        const checks = {
+          length: val.length >= 8,
+          upper: /[A-Z]/.test(val),
+          lower: /[a-z]/.test(val),
+          number: /[0-9]/.test(val),
+          symbol: /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(val),
+        };
+
+        let allValid = true;
+        for (const [key, isValid] of Object.entries(checks)) {
+          const el = container.querySelector(`[data-req="${key}"]`);
+          const icon = el.querySelector("i");
+          if (isValid) {
+            el.classList.remove("text-slate-400");
+            el.classList.add("text-emerald-600", "font-medium");
+            icon.className =
+              "fas fa-lock text-emerald-500 text-[10px] w-3 text-center transform scale-110";
+          } else {
+            el.classList.add("text-slate-400");
+            el.classList.remove("text-emerald-600", "font-medium");
+            icon.className =
+              "fas fa-lock-open text-red-400 text-[10px] w-3 text-center";
+            allValid = false;
+          }
+        }
+        btn.disabled = !allValid;
+      });
+    };
+
+    setupValidator("newAccessPass", "req-access", "btnChangeAccess");
+    setupValidator("newVaultPass", "req-vault", "btnChangeVault");
+
+    // --- 3. Lógica de Restauración ---
+    const fileInput = document.getElementById("fileImport");
+    const btnRestore = document.getElementById("btnRestore");
+    const btnExport = document.getElementById("btnExport");
+    const statusDiv = document.getElementById("restoreStatus");
+    const btnChooseFile = document.querySelector(
+      "button[onclick*='fileImport']"
+    );
+
+    if (btnChooseFile)
+      btnChooseFile.onclick = () =>
+        document.getElementById("fileImport").click();
+
+    fileInput?.addEventListener("change", () => {
+      if (fileInput.files.length) {
+        btnRestore.disabled = false;
+        statusDiv.textContent = `Archivo: ${fileInput.files[0].name}`;
+      } else {
+        btnRestore.disabled = true;
+        statusDiv.textContent = "";
       }
     });
+
+    btnExport?.addEventListener("click", async () => {
+      await this._handleExport(btnExport);
+    });
+
+    btnRestore?.addEventListener("click", async () => {
+      const file = fileInput.files[0];
+      if (!file) return;
+
+      if (!encryptionService.isReady()) {
+        toast.show("Ingresa tu clave maestra actual primero.", "error");
+        return;
+      }
+
+      const executeRestore = async (overridePassword = null) => {
+        btnRestore.disabled = true;
+        btnExport.disabled = true;
+        statusDiv.textContent = overridePassword
+          ? "Intentando descifrar con clave antigua..."
+          : "Procesando restauración...";
+
+        try {
+          const result = await backupService.restoreBackup(
+            file,
+            overridePassword
+          );
+
+          toast.show(
+            `✅ Restauración exitosa: ${result.docsRestored} docs.`,
+            "success"
+          );
+          setTimeout(() => window.location.reload(), 1500);
+        } catch (error) {
+          console.error("Restore failed:", error);
+
+          if (
+            error.type === "KEY_MISMATCH" ||
+            error.message.includes("mac check failed") ||
+            error.message.includes("signature")
+          ) {
+            if (overridePassword) {
+              toast.show(
+                "❌ La clave antigua proporcionada no es válida.",
+                "error"
+              );
+            } else {
+              const prompt = new PasswordPrompt(async (legacyPass) => {
+                await executeRestore(legacyPass);
+                return true;
+              }, "Respaldo Antiguo");
+
+              prompt.show();
+              setTimeout(() => {
+                const title = document.querySelector("#passwordPromptModal h3");
+                const desc = document.querySelector("#passwordPromptModal p");
+                if (title) title.textContent = "Respaldo Protegido";
+                if (desc)
+                  desc.innerHTML =
+                    "Este archivo fue cifrado con una <strong>clave diferente</strong>. Ingresa la clave que usabas cuando creaste este respaldo.";
+              }, 50);
+            }
+          } else {
+            toast.show(error.message || "Error al restaurar.", "error");
+          }
+        } finally {
+          btnRestore.disabled = false;
+          btnExport.disabled = false;
+          statusDiv.textContent = "";
+        }
+      };
+
+      await executeRestore();
+    });
+
+    // --- 4. Submits de Formularios ---
+    document
+      .getElementById("changeAccessPassForm")
+      ?.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const currentPass = document.getElementById("currentAccessPass").value;
+        const newPass = document.getElementById("newAccessPass").value;
+        try {
+          await authService.changeAccessPassword(newPass, currentPass);
+          toast.show("✅ Login actualizado. Reiniciando...", "success");
+          setTimeout(() => authService.logout(), 1000);
+        } catch (err) {
+          toast.show(err.message, "error");
+        }
+      });
+
+    document
+      .getElementById("changeVaultPassForm")
+      ?.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const currentVaultPass =
+          document.getElementById("currentVaultPass").value;
+        const newVaultPass = document.getElementById("newVaultPass").value;
+
+        if (document.getElementById("btnChangeVault").disabled) return;
+
+        const btn = document.getElementById("btnChangeVault");
+        btn.disabled = true;
+        btn.textContent = "Re-cifrando...";
+
+        try {
+          await authService.reEncryptVault(currentVaultPass, newVaultPass);
+          toast.show("✅ Bóveda re-cifrada. Reiniciando...", "success");
+          encryptionService.lock();
+          setTimeout(() => window.location.reload(), 1000);
+        } catch (err) {
+          toast.show(err.message, "error");
+          btn.disabled = false;
+          btn.textContent = "Re-Cifrar Bóveda";
+        }
+      });
   }
 
-  close() {
-    const modal = document.getElementById("vaultSetupModal");
-    if (modal) modal.remove();
+  async _handleExport(btn) {
+    if (!encryptionService.isReady()) {
+      if (window.app && window.app.requireEncryption) {
+        window.app.requireEncryption(() => this._handleExport(btn));
+      }
+      return;
+    }
+    btn.disabled = true;
+    const oldHtml = btn.innerHTML;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generando...';
+    try {
+      const result = await backupService.createBackup();
+      toast.show(`✅ Respaldo descargado (${result.count} docs).`, "success");
+    } catch (e) {
+      toast.show("Error exportando.", "error");
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = oldHtml;
+    }
   }
 }
