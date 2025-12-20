@@ -1,7 +1,6 @@
-import { BaseElement } from "../BaseElement.js";
-import { getLocalCurrency } from "../../../utils/helpers.js"; // Asegúrate de que esta ruta sea correcta o ajustala
+import { NumberElement } from "./NumberElement.js"; // Importamos la clase madre
 
-export class CurrencyElement extends BaseElement {
+export class CurrencyElement extends NumberElement {
   static getType() {
     return "currency";
   }
@@ -12,45 +11,54 @@ export class CurrencyElement extends BaseElement {
     return "fas fa-dollar-sign";
   }
   static getDescription() {
-    return "Importes financieros.";
+    return "Importes financieros con formato de moneda.";
   }
 
-  renderEditor() {
-    return `
-      <label class="block text-xs font-bold text-slate-500 uppercase mb-1 ml-1">${
-        this.def.label
-      }</label>
-      <div class="relative">
-        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-          <span class="text-slate-400 text-sm">$</span>
-        </div>
-        <input type="number" id="${this.def.id}" value="${
-      this.value || ""
-    }" step="0.01"
-          class="w-full bg-slate-50 border border-slate-200 rounded-lg pl-8 pr-3 py-2 text-sm font-mono focus:bg-white focus:border-brand-500 outline-none transition-all"
-          placeholder="0.00">
-      </div>
-    `;
+  // Sobrescribimos el símbolo izquierdo del editor
+  renderLeftSymbol() {
+    const symbol = this.def.currencySymbol || "$";
+    return `<span>${symbol}</span>`; // Usamos texto en lugar de ícono FontAwesome
   }
 
-  postRenderEditor(container, onChange) {
-    const input = container.querySelector(`#${this.def.id}`);
-    input?.addEventListener("input", (e) =>
-      onChange(this.def.id, e.target.value)
-    );
+  // --- CONFIGURACIÓN EXTRA (Opcional) ---
+  // Podemos añadir un input para configurar el símbolo si quisieras
+  renderSettings() {
+    // Reutilizamos el de NumberElement y podríamos concatenar más
+    return super.renderSettings();
   }
 
+  // --- VISUALIZACIÓN (Formato Moneda) ---
   renderViewer() {
-    if (!this.value) return "—";
-    // Formateo simple, idealmente usaríamos la config del usuario
-    const formatted = new Intl.NumberFormat("es-ES", {
-      style: "currency",
-      currency: "USD",
-    }).format(this.value);
-    return `<span class="font-mono font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded">${formatted}</span>`;
+    if (!this.value)
+      return '<span class="text-slate-300 text-xs italic">--</span>';
+
+    const symbol = this.def.currencySymbol || "$";
+    let formattedNumber = this.value;
+
+    try {
+      formattedNumber = new Intl.NumberFormat("es-ES", {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      }).format(Number(this.value));
+    } catch (e) {}
+
+    return `<span class="font-mono font-bold text-slate-700 bg-slate-50 px-2 py-0.5 rounded border border-slate-100 text-sm whitespace-nowrap">${symbol} ${formattedNumber}</span>`;
   }
 
-  getWhatsAppText() {
-    return `*${this.def.label}*: $${this.value}`;
+  // --- IMPRESIÓN ---
+  renderPrint(mode) {
+    const val = this.value || "—";
+    const symbol = this.def.currencySymbol || "$";
+
+    if (mode === "compact")
+      return `<div class="text-[9px]"><b class="uppercase">${this.def.label}:</b> ${symbol} ${val}</div>`;
+
+    return `
+      <div class="mb-2 page-break avoid-break-inside">
+         <dt class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">${this.def.label}</dt>
+         <dd class="text-sm text-slate-900 border-b border-slate-100 pb-1 font-mono text-right font-bold">
+            ${symbol} ${val}
+         </dd>
+      </div>`;
   }
 }

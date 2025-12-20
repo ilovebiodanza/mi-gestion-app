@@ -40,31 +40,36 @@ export class StringElement extends BaseElement {
     const inputClasses =
       "block w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 text-sm placeholder-slate-400 focus:bg-white focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all outline-none";
 
+    // CORRECCIÓN:
+    // 1. Agregado 'flex flex-col' al wrapper para forzar la verticalidad (etiqueta arriba, input abajo).
+    // 2. Agregado 'id="${this.def.id}"' al input para que FormManager pueda leerlo y no falle al guardar.
     return `
-      <label class="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-2 ml-1 flex items-center justify-between">
-         <span>${this.def.label}</span>${requiredBadge}
-      </label>
-      <div class="relative group/std">
-        <input type="text" id="${this.def.id}" value="${
+      <div class="field-wrapper flex flex-col mb-4 md:col-span-1 print:col-span-1" data-field-id="${
+        this.def.id
+      }">
+        <label class="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-2 ml-1 flex items-center justify-between">
+           <span>${this.def.label}</span>${requiredBadge}
+        </label>
+        <div class="relative group/std">
+          <input type="text" id="${this.def.id}" name="${this.def.id}" value="${
       this.value || ""
     }" class="${inputClasses}" placeholder="${this.def.placeholder || ""}">
+        </div>
       </div>`;
   }
 
   postRenderEditor(container, onChange) {
+    // Busca el elemento por ID y asigna el evento. Si el ID falta en el render, esto falla silenciosamente y luego el Guardar explota.
     container
       .querySelector(`#${this.def.id}`)
       ?.addEventListener("input", (e) => onChange(this.def.id, e.target.value));
   }
 
-  // --- 🟢 VISUALIZACIÓN HOMOLOGADA (Copiado de TextViewer.js) ---
   renderViewer() {
     const val = this.value || "—";
-    // Usamos las mismas clases que TextViewer: prose, text-slate-600, whitespace-pre-line
     return `<div class="prose prose-sm max-w-none text-slate-600 whitespace-pre-line">${val}</div>`;
   }
 
-  // ... (renderPrint se mantiene igual) ...
   renderPrint(mode) {
     const val = this.value || "—";
     if (mode === "compact")

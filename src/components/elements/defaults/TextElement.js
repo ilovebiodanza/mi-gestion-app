@@ -17,8 +17,7 @@ export class TextElement extends BaseElement {
     return 2;
   }
 
-  // --- 1. CONFIGURACIÓN (Template) ---
-  // Igual que String, pero adaptado semánticamente
+  // --- 1. CONFIGURACIÓN ---
   renderSettings() {
     return `
       <div class="md:col-span-12">
@@ -41,38 +40,47 @@ export class TextElement extends BaseElement {
       );
   }
 
-  // --- 2. EDITOR (InputRenderers / form-generator) ---
+  // --- 2. EDITOR ---
   renderEditor() {
     const requiredBadge = this.def.required
       ? '<span class="text-[10px] bg-red-50 text-red-500 px-1.5 py-0.5 rounded border border-red-100 font-bold">REQ</span>'
       : "";
+
     const inputClasses =
       "block w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 text-sm placeholder-slate-400 focus:bg-white focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all outline-none resize-y";
 
+    // CORRECCIÓN:
+    // 1. 'flex flex-col' para forzar etiqueta arriba.
+    // 2. 'md:col-span-2' para que ocupe todo el ancho (como indica tu getColumns).
     return `
-      <label class="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-2 ml-1 flex items-center justify-between">
-         <span>${this.def.label}</span>${requiredBadge}
-      </label>
-      <div class="relative group/std">
-        <textarea id="${
-          this.def.id
-        }" rows="4" class="${inputClasses}" placeholder="${
-      this.def.placeholder || "Escribe aquí..."
-    }">${this.value || ""}</textarea>
+      <div class="field-wrapper flex flex-col mb-4 md:col-span-2 print:col-span-2" data-field-id="${
+        this.def.id
+      }">
+        <label class="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-2 ml-1 flex items-center justify-between">
+           <span>${this.def.label}</span>${requiredBadge}
+        </label>
+        <div class="relative group/std">
+          <textarea 
+            id="${this.def.id}" 
+            name="${this.def.id}" 
+            rows="4" 
+            class="${inputClasses}" 
+            placeholder="${this.def.placeholder || "Escribe aquí..."}">${
+      this.value || ""
+    }</textarea>
+        </div>
       </div>`;
   }
 
   postRenderEditor(container, onChange) {
-    const input = container.querySelector(`#${this.def.id}`);
-    input?.addEventListener("input", (e) =>
-      onChange(this.def.id, e.target.value)
-    );
+    container
+      .querySelector(`#${this.def.id}`)
+      ?.addEventListener("input", (e) => onChange(this.def.id, e.target.value));
   }
 
-  // --- 3. VISUALIZACIÓN (TextViewer homologado) ---
+  // --- 3. VISUALIZACIÓN ---
   renderViewer() {
     const val = this.value || "—";
-    // Estilos copiados de TextViewer.js (prose, whitespace-pre-line)
     return `<div class="prose prose-sm max-w-none text-slate-600 whitespace-pre-line">${val}</div>`;
   }
 
@@ -82,9 +90,9 @@ export class TextElement extends BaseElement {
     if (mode === "compact")
       return `<div class="text-[9px] mb-1"><b class="uppercase">${this.def.label}:</b> <span class="whitespace-pre-wrap">${val}</span></div>`;
 
-    // Standard Print
+    // Mantenemos tu diseño original con el borde izquierdo (border-l-2)
     return `
-      <div class="mb-4 page-break avoid-break-inside">
+      <div class="mb-4 page-break avoid-break-inside col-span-2">
          <dt class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">${this.def.label}</dt>
          <dd class="text-sm text-slate-900 border-l-2 border-slate-200 pl-3 py-1 font-medium whitespace-pre-line">${val}</dd>
       </div>`;

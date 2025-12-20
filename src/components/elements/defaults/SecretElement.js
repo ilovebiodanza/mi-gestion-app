@@ -11,7 +11,7 @@ export class SecretElement extends BaseElement {
     return "fas fa-key";
   }
   static getDescription() {
-    return "Se visualiza con desenfoque/asteriscos.";
+    return "Se visualiza con desenfoque y permite copiar.";
   }
 
   // Por defecto ocupa 1 columna
@@ -19,7 +19,7 @@ export class SecretElement extends BaseElement {
     return 1;
   }
 
-  // --- 1. CONFIGURACIÓN (Template) ---
+  // --- 1. CONFIGURACIÓN ---
   renderSettings() {
     return `
       <div class="md:col-span-12">
@@ -41,36 +41,44 @@ export class SecretElement extends BaseElement {
       );
   }
 
-  // --- 2. EDITOR (InputRenderers) ---
+  // --- 2. EDITOR (Corregido para Adapter) ---
   renderEditor() {
     const requiredBadge = this.def.required
       ? '<span class="text-[10px] bg-red-50 text-red-500 px-1.5 py-0.5 rounded border border-red-100 font-bold">REQ</span>'
       : "";
 
-    // Clases base + padding extra para iconos (pl-11, pr-12)
+    // Mantenemos tus clases originales (pl-11 para el icono de llave, pr-12 para el ojo)
     const inputClasses =
       "block w-full pl-11 pr-12 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 text-sm placeholder-slate-400 focus:bg-white focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all outline-none font-mono tracking-wider";
 
+    // ESTRUCTURA CORREGIDA:
+    // 1. Wrapper con 'flex flex-col' (etiqueta arriba).
+    // 2. Input con 'id' y 'name' correctos.
     return `
-      <label class="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-2 ml-1 flex items-center justify-between">
-         <span>${this.def.label}</span>${requiredBadge}
-      </label>
-      <div class="relative group/pass">
-          <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400 group-focus-within/pass:text-secondary transition-colors">
-              <i class="fas fa-key"></i>
-          </div>
-          
-          <input type="password" id="${this.def.id}" value="${
-      this.value || ""
-    }" class="${inputClasses}" placeholder="${
-      this.def.placeholder || "••••••••"
-    }">
-          
-          <button type="button" id="toggle-${
-            this.def.id
-          }" class="absolute inset-y-0 right-0 pr-4 flex items-center text-slate-400 hover:text-secondary cursor-pointer focus:outline-none transition-colors" tabindex="-1">
-              <i class="fas fa-eye"></i>
-          </button>
+      <div class="field-wrapper flex flex-col mb-4 md:col-span-1 print:col-span-1" data-field-id="${
+        this.def.id
+      }">
+        <label class="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-2 ml-1 flex items-center justify-between">
+           <span>${this.def.label}</span>${requiredBadge}
+        </label>
+        
+        <div class="relative group/pass">
+            <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400 group-focus-within/pass:text-secondary transition-colors">
+                <i class="fas fa-key"></i>
+            </div>
+            
+            <input type="password" 
+                   id="${this.def.id}" 
+                   name="${this.def.id}" 
+                   value="${this.value || ""}" 
+                   class="${inputClasses}" 
+                   placeholder="${this.def.placeholder || "••••••••"}">
+            
+            <button type="button" id="toggle-${this.def.id}" 
+                    class="absolute inset-y-0 right-0 pr-4 flex items-center text-slate-400 hover:text-secondary cursor-pointer focus:outline-none transition-colors" tabindex="-1">
+                <i class="fas fa-eye"></i>
+            </button>
+        </div>
       </div>`;
   }
 
@@ -78,53 +86,65 @@ export class SecretElement extends BaseElement {
     const input = container.querySelector(`#${this.def.id}`);
     const btn = container.querySelector(`#toggle-${this.def.id}`);
 
-    // Listener de cambios
+    // Listener de cambios (Ahora sí encontrará el input por ID)
     input?.addEventListener("input", (e) =>
       onChange(this.def.id, e.target.value)
     );
 
-    // Listener del Toggle (Ojo)
+    // Listener del Toggle (Ojo) - Lógica original conservada
     btn?.addEventListener("click", () => {
       const icon = btn.querySelector("i");
       if (input.type === "password") {
         input.type = "text";
         icon.classList.replace("fa-eye", "fa-eye-slash");
         btn.classList.add("text-secondary");
+        // Opcional: poner focus de nuevo para seguir escribiendo
+        input.focus();
       } else {
         input.type = "password";
         icon.classList.replace("fa-eye-slash", "fa-eye");
         btn.classList.remove("text-secondary");
+        input.focus();
       }
     });
   }
 
-  // --- 3. VISUALIZACIÓN (SecretViewer Homologado) ---
+  // --- 3. VISUALIZACIÓN (Tu versión avanzada conservada) ---
   renderViewer() {
     if (!this.value)
       return '<span class="text-slate-300 text-xs italic">--</span>';
 
-    // Generamos ID único para controlar este elemento específico
     this.uniqueId = `secret-${this.def.id}-${Math.random()
       .toString(36)
       .substr(2, 9)}`;
 
+    const safeValue = String(this.value);
+    const mask = "•".repeat(safeValue.length);
+
     return `
         <div class="flex items-center gap-2" id="${this.uniqueId}">
-            <div class="relative group overflow-hidden rounded-lg border border-slate-200 bg-white px-3 py-2 transition-all hover:border-indigo-200 hover:shadow-sm w-full">
-                <span class="secret-mask filter blur-[5px] select-none transition-all duration-300 group-hover:blur-none font-mono text-sm text-slate-800 tracking-wider">••••••••••••••</span>
-                <span class="secret-revealed hidden font-mono text-sm text-slate-800 select-all font-bold tracking-wide">${this.value}</span>
+            <div class="relative group overflow-hidden rounded-lg bg-amber-50/60 border border-amber-100 px-3 py-2 transition-all hover:bg-amber-100/50">
+                
+                <span class="secret-mask filter blur-[4px] select-none transition-all duration-300 group-hover:blur-[2px] font-mono text-sm text-amber-900/40 tracking-wide flex items-center h-5">
+                    ${mask}
+                </span>
+                
+                <span class="secret-revealed hidden font-mono text-sm text-slate-800 select-all font-bold tracking-wide h-5 flex items-center">
+                    ${safeValue}
+                </span>
             </div>
-            <button type="button" class="toggle-btn w-10 h-10 flex-shrink-0 flex items-center justify-center rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors bg-white border border-slate-200" title="Revelar">
+
+            <button type="button" class="toggle-btn w-9 h-9 flex-shrink-0 flex items-center justify-center rounded-lg text-amber-400 hover:text-amber-600 hover:bg-amber-50 transition-colors border border-transparent hover:border-amber-100" title="Revelar">
                 <i class="fas fa-eye"></i>
             </button>
-            <button type="button" class="copy-btn w-10 h-10 flex-shrink-0 flex items-center justify-center rounded-lg text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 transition-colors bg-white border border-slate-200" title="Copiar">
+            <button type="button" class="copy-btn w-9 h-9 flex-shrink-0 flex items-center justify-center rounded-lg text-slate-300 hover:text-emerald-600 hover:bg-emerald-50 transition-colors border border-transparent hover:border-emerald-100" title="Copiar">
                 <i class="far fa-copy"></i>
             </button>
         </div>`;
   }
 
-  // Método especial para activar los listeners en el Viewer
   postRenderViewer(container) {
+    // Tu lógica de viewer se mantiene intacta
     const wrapper = container.querySelector(`#${this.uniqueId}`);
     if (!wrapper) return;
 
@@ -134,7 +154,6 @@ export class SecretElement extends BaseElement {
     const revealed = wrapper.querySelector(".secret-revealed");
     const icon = toggleBtn?.querySelector("i");
 
-    // Lógica Toggle
     toggleBtn?.addEventListener("click", (e) => {
       e.stopPropagation();
       const isHidden = revealed.classList.contains("hidden");
@@ -149,7 +168,6 @@ export class SecretElement extends BaseElement {
       }
     });
 
-    // Lógica Copiar
     copyBtn?.addEventListener("click", (e) => {
       e.stopPropagation();
       navigator.clipboard.writeText(this.value);
@@ -159,8 +177,13 @@ export class SecretElement extends BaseElement {
     });
   }
 
-  // --- 4. IMPRESIÓN ---
+  // --- 4. IMPRESIÓN (Tu estilo Amber conservado) ---
   renderPrint(mode) {
+    // Si quieres ocultarlo en impresión compacta
+    if (mode === "compact") {
+      return `<div class="text-[9px] mb-1"><b class="uppercase">${this.def.label}:</b> ••••••••</div>`;
+    }
+
     return `
       <div class="mb-2 page-break avoid-break-inside">
          <dt class="text-[10px] font-bold text-amber-600 uppercase tracking-wider mb-1 flex items-center gap-1">
