@@ -1,15 +1,16 @@
 // src/components/editor/core/FormManager.js
 import { fieldRegistry } from "./FieldRegistry.js";
-import { ElementRegistry } from "../../../components/elements/ElementRegistry.js";
-import { ElementAdapter } from "./ElementAdapter.js";
 
 export class FormManager {
   constructor(fieldsDef, initialData = {}) {
     this.fieldsDef = fieldsDef;
     this.formData = { ...initialData };
     this.controllers = {};
+
+    // Nueva propiedad para manejar el estado de las pestañas
     this.activeTabId = "group-principal";
   }
+
   /**
    * Método auxiliar para agrupar campos basado en separadores
    */
@@ -148,54 +149,13 @@ export class FormManager {
    * Renderiza una lista plana de campos (reutilizado)
    */
   renderFieldsFlat(fields) {
-    // 🟢 CORRECCIÓN: Limpiar controladores previos antes de un nuevo renderizado
-    // Esto evita que queden controladores antiguos en memoria con eventos activos.
-    this.controllers = {};
-
     return fields
       .map((fieldDef) => {
-        let controller = null;
-        const initialValue = this.formData[fieldDef.id];
-
-        if (
-          [
-            "boolean",
-            "currency",
-            "date",
-            "email",
-            "number",
-            "percentage",
-            "secret",
-            "select",
-            "separator",
-            "string",
-            "text",
-            "url",
-          ].includes(fieldDef.type)
-        ) {
-          try {
-            const ElementClass = ElementRegistry.get(fieldDef.type);
-            controller = new ElementAdapter(
-              ElementClass,
-              fieldDef,
-              initialValue
-            );
-          } catch (e) {
-            console.error(
-              `Error creando ElementAdapter para ${fieldDef.type}`,
-              e
-            );
-          }
-        }
-
-        if (!controller) {
-          controller = fieldRegistry.createController(
-            fieldDef,
-            initialValue,
-            (id, newValue) => this.handleFieldChange(id, newValue)
-          );
-        }
-
+        const controller = fieldRegistry.createController(
+          fieldDef,
+          this.formData[fieldDef.id],
+          (id, newValue) => this.handleFieldChange(id, newValue)
+        );
         this.controllers[fieldDef.id] = controller;
         return controller.render();
       })
@@ -218,18 +178,15 @@ export class FormManager {
       }
     });
 
-    // 2. Lógica de Pestañas (Desktop) con protección de duplicados
+    // 2. Lógica de Pestañas (Desktop)
     const tabTriggers = container.querySelectorAll(".tab-trigger");
     const groupContainers = container.querySelectorAll(".group-container");
 
     tabTriggers.forEach((btn) => {
-      // 🟢 CORRECCIÓN: Clonamos el nodo o removemos el listener si existiera (depende de la implementación)
-      // Lo más sencillo es asegurar que no se añadan múltiples veces usando un flag
-      if (btn.dataset.listenerActive) return;
-      btn.dataset.listenerActive = "true";
-
       btn.addEventListener("click", () => {
         const targetId = btn.dataset.target;
+
+        // UI Pestañas
         tabTriggers.forEach((t) => {
           t.classList.remove(
             "border-indigo-500",
@@ -238,16 +195,20 @@ export class FormManager {
           );
           t.classList.add("border-transparent", "text-slate-500");
         });
+        btn.classList.remove("border-transparent", "text-slate-500");
         btn.classList.add(
           "border-indigo-500",
           "text-indigo-600",
           "bg-indigo-50/50"
         );
 
+        // Mostrar/Ocultar Contenedores (Solo afecta la clase md:hidden)
         groupContainers.forEach((grp) => {
-          grp.id === targetId
-            ? grp.classList.remove("md:hidden")
-            : grp.classList.add("md:hidden");
+          if (grp.id === targetId) {
+            grp.classList.remove("md:hidden");
+          } else {
+            grp.classList.add("md:hidden");
+          }
         });
       });
     });
