@@ -17,23 +17,7 @@ class FieldRegistry {
 
     // Verificamos si es un elemento real y no el fallback por defecto (o si es el que queremos probar)
     // En este caso, forzamos el uso del adaptador si el tipo es 'boolean'
-    if (
-      [
-        "boolean",
-        "date",
-        "email",
-        "secret",
-        "select",
-        "separator",
-        "string",
-        "text",
-        "number",
-        "percentage",
-        "currency",
-        "table",
-      ].includes(fieldDef.type) &&
-      NewElementClass
-    ) {
+    if ([].includes(fieldDef.type) && NewElementClass) {
       // console.log({ fieldDef, initialValue, onChange });
 
       //      console.log(`Migrando tipo: ${fieldDef.type} a ElementRegistry vía Adaptador`);

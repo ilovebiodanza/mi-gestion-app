@@ -213,8 +213,8 @@ export class TableFieldController extends AbstractField {
 
     this.columns.forEach((col) => {
       if (col.type === "url") {
-        csvHeaders.push(`"${col.label} (URL)"`);
-        csvHeaders.push(`"${col.label} (Texto)"`);
+        csvHeaders.push(`"${col.label} (url)"`);
+        csvHeaders.push(`"${col.label} (text)"`);
         colMappings.push({ id: col.id, type: "url", prop: "url" });
         colMappings.push({ id: col.id, type: "url", prop: "text" });
       } else {
@@ -278,8 +278,8 @@ export class TableFieldController extends AbstractField {
 
         this.columns.forEach((col) => {
           if (col.type === "url") {
-            const urlHeader = `${col.label} (URL)`.toLowerCase();
-            const textHeader = `${col.label} (Texto)`.toLowerCase();
+            const urlHeader = `${col.label} (url)`.toLowerCase();
+            const textHeader = `${col.label} (text)`.toLowerCase();
             const simpleHeader = col.label.toLowerCase();
 
             const uIdx = headers.findIndex(

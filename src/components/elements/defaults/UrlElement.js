@@ -48,14 +48,8 @@ export class UrlElement extends BaseElement {
       ? '<span class="text-[10px] bg-red-50 text-red-500 px-1.5 py-0.5 rounded border border-red-100 font-bold">REQ</span>'
       : "";
 
-    let val = "";
-    if (this.value && typeof this.value === "object") {
-      val = this.value.url || "";
-    } else {
-      val = this.value || "";
-    }
-
-    console.log(this.def);
+    const url = this.value.url;
+    const text = this.value.text;
 
     const inputClasses =
       "block w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 text-sm placeholder-slate-400 focus:bg-white focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all outline-none text-blue-600";
@@ -76,7 +70,7 @@ export class UrlElement extends BaseElement {
            <input type="url" 
               id="${this.def.id}" 
               name="${this.def.id}" 
-              value="${val}" 
+              value="${url}" 
               class="${inputClasses}" 
               placeholder="${this.def.placeholder || "https://..."}">
         </div>
@@ -84,7 +78,7 @@ export class UrlElement extends BaseElement {
               <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400 group-focus-within/std:text-primary transition-colors"">
                   <i class="fas fa-font text-xs"></i>
               </div>
-              <input type="text" class="text-input w-full bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm px-3 py-2 pl-8 text-slate-700 placeholder-slate-400 font-medium" placeholder="">
+              <input type="text" class="text-input w-full bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm px-3 py-2 pl-8 text-slate-700 placeholder-slate-400 font-medium" placeholder="" value="${text}>
           </div>
       </div>`;
   }
@@ -98,40 +92,39 @@ export class UrlElement extends BaseElement {
 
   // --- 3. VISUALIZACIÓN (VIEWER) ---
   renderViewer() {
-    const val =
-      this.value && typeof this.value === "object"
-        ? this.value.url
-        : this.value;
+    console.log(this.value);
+    const url = this.value.url;
+    const text = this.value.text;
 
-    if (!val) return '<span class="text-slate-300 text-xs italic">--</span>';
+    if (!url) return '<span class="text-slate-300 text-xs italic">--</span>';
 
     // Generamos un ID único para los eventos de este elemento específico
     const uniqueId = `media-${this.def.id}-${Math.floor(Math.random() * 1000)}`;
 
     // 🎵 A. AUDIO (MP3/WAV)
-    if (val.match(/\.(mp3|wav|ogg|m4a)$/i)) {
-      const fileName = val.split("/").pop().replace(/%20/g, " ");
+    if (url.match(/\.(mp3|wav|ogg|m4a)$/i)) {
+      const fileName = url.split("/").pop().replace(/%20/g, " ");
       return `
         <div class="flex items-center gap-3 group mt-1" id="${uniqueId}">
             <button type="button" 
                     class="js-play-audio w-9 h-9 flex items-center justify-center rounded-full border border-slate-200 bg-pink-50 group-hover:bg-pink-100 text-pink-500 transition-all shadow-sm hover:scale-105 cursor-pointer" 
-                    data-src="${val}" 
+                    data-src="${url}" data-text="${text}"
                     title="Reproducir">
                <i class="fas fa-play ml-0.5"></i>
             </button>
             <div class="flex flex-col">
-                <span class="text-xs font-bold text-slate-700">Audio Disponible</span>
+                <span class="text-xs font-bold text-slate-700">${text}</span>
                 <span class="text-[10px] text-slate-500 truncate max-w-[200px]">${fileName}</span>
             </div>
         </div>`;
     }
 
     // 🖼️ B. IMAGEN
-    if (val.match(/\.(jpeg|jpg|gif|png|webp)$/i)) {
+    if (url.match(/\.(jpeg|jpg|gif|png|webp)$/i)) {
       return `
         <div class="mt-2" id="${uniqueId}">
-            <div class="relative group w-fit cursor-pointer js-view-image" data-src="${val}">
-                <img src="${val}" class="max-w-full h-auto max-h-48 rounded-lg border border-slate-200 shadow-sm transition-transform hover:scale-[1.02]" loading="lazy" alt="Preview">
+            <div class="relative group w-fit cursor-pointer js-view-image" data-src="${url}">
+                <img src="${url}" class="max-w-full h-auto max-h-48 rounded-lg border border-slate-200 shadow-sm transition-transform hover:scale-[1.02]" loading="lazy" alt="Preview">
                 <div class="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors rounded-lg flex items-center justify-center">
                     <i class="fas fa-expand text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow-md"></i>
                 </div>
@@ -141,8 +134,8 @@ export class UrlElement extends BaseElement {
 
     // 🔗 C. LINK NORMAL
     return `
-      <a href="${val}" target="_blank" class="inline-flex items-center gap-2 text-indigo-600 hover:text-indigo-800 hover:underline transition-colors font-medium break-all bg-indigo-50 px-3 py-1.5 rounded-lg border border-indigo-100">
-        <i class="fas fa-external-link-alt text-xs"></i> ${val}
+      <a href="${url}" target="_blank" class="inline-flex items-center gap-2 text-indigo-600 hover:text-indigo-800 hover:underline transition-colors font-medium break-all bg-indigo-50 px-3 py-1.5 rounded-lg border border-indigo-100">
+        <i class="fas fa-external-link-alt text-xs"></i> ${text}
       </a>`;
   }
 
@@ -154,7 +147,8 @@ export class UrlElement extends BaseElement {
       playBtn.addEventListener("click", (e) => {
         e.preventDefault();
         const src = playBtn.dataset.src;
-        this.openFloatingPlayer(src);
+        const text = playBtn.dataset.text;
+        this.openFloatingPlayer(src, text);
       });
     }
 
@@ -171,7 +165,7 @@ export class UrlElement extends BaseElement {
 
   // --- FUNCIONES AUXILIARES DE UI (Inyectan HTML en el body) ---
 
-  openFloatingPlayer(src) {
+  openFloatingPlayer(src, text) {
     // Eliminar reproductor anterior si existe
     const existing = document.getElementById("global-audio-player");
     if (existing) existing.remove();
@@ -181,7 +175,7 @@ export class UrlElement extends BaseElement {
       <div id="global-audio-player" class="fixed bottom-6 right-6 z-[9999] w-80 bg-white rounded-2xl shadow-2xl border border-slate-100 overflow-hidden animate-slide-up transform transition-all duration-300">
          <div class="px-4 py-2 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
             <span class="text-[11px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
-                <i class="fas fa-music text-pink-500"></i> Música
+                <i class="fas fa-music text-pink-500"></i> ${text}
             </span>
             <button id="close-audio-player" class="text-slate-400 hover:text-red-500 w-6 h-6 flex items-center justify-center rounded-full hover:bg-red-50 transition-colors">
                 <i class="fas fa-times text-xs"></i>
@@ -238,30 +232,30 @@ export class UrlElement extends BaseElement {
 
   // --- 4. IMPRESIÓN ---
   renderPrint(mode) {
-    const val =
+    const url =
       this.value && typeof this.value === "object"
         ? this.value.url
         : this.value || "—";
 
     // Si es Audio
-    if (val.match(/\.(mp3|wav|ogg)$/i)) {
-      return `<div class="text-xs flex items-center gap-2 py-1"><i class="fas fa-music text-pink-500"></i> <span class="text-slate-600 underline">${val
+    if (url.match(/\.(mp3|wav|ogg)$/i)) {
+      return `<div class="text-xs flex items-center gap-2 py-1"><i class="fas fa-music text-pink-500"></i> <span class="text-slate-600 underline">${url
         .split("/")
         .pop()}</span></div>`;
     }
     // Si es Imagen
-    if (val.match(/\.(jpeg|jpg|png|webp)$/i)) {
-      return `<div class="py-1"><img src="${val}" class="h-20 w-auto rounded border border-slate-200 object-cover"></div>`;
+    if (url.match(/\.(jpeg|jpg|png|webp)$/i)) {
+      return `<div class="py-1"><img src="${url}" class="h-20 w-auto rounded border border-slate-200 object-cover"></div>`;
     }
 
     if (mode === "compact")
-      return `<div class="text-[9px]"><b class="uppercase">${this.def.label}:</b> ${val}</div>`;
+      return `<div class="text-[9px]"><b class="uppercase">${this.def.label}:</b> ${url}</div>`;
 
     return `
       <div class="mb-2 page-break avoid-break-inside">
          <dt class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">${this.def.label}</dt>
          <dd class="text-sm text-blue-700 border-b border-slate-100 pb-1 font-medium underline break-all">
-            ${val}
+            ${url}
          </dd>
       </div>`;
   }
