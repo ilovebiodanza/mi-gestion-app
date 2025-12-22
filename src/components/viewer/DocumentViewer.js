@@ -337,10 +337,70 @@ export class DocumentViewer {
   }
 
   showPrintOptions() {
-    // Reutiliza tu lógica existente de modal de impresión aquí
-    // O llámala si la tienes en otro helper.
-    // Para brevedad, asumo que llamas a this.triggerPrint('standard');
-    const data = { ...this.document.metadata, id: this.document.id };
-    printDocument(data, this.template, this.decryptedData, "standard");
+    if (!document.getElementById("printOptionsModal")) {
+      const modalHtml = `
+        <div id="printOptionsModal" class="fixed inset-0 z-[70] flex items-center justify-center p-4 hidden"> 
+            <div class="absolute inset-0 bg-slate-900/20 backdrop-blur-sm" id="printModalBackdrop"></div>
+            <div class="relative bg-white rounded-xl shadow-2xl w-full max-w-sm overflow-hidden animate-slide-up">
+                <div class="p-6 text-center">
+                    <h3 class="text-lg font-bold text-slate-800 mb-4">Imprimir Documento</h3>
+                    <div class="space-y-3">
+                        <button id="printStandardBtn" class="w-full flex items-center p-3 border border-slate-200 rounded-lg hover:border-brand-500 hover:bg-brand-50 transition-all text-left group">
+                            <i class="fas fa-file-alt text-2xl text-slate-300 group-hover:text-brand-500 mr-4"></i>
+                            <div>
+                                <span class="block font-bold text-slate-700 text-sm">Formato Visual</span>
+                                <span class="block text-xs text-slate-400">Diseño completo con iconos</span>
+                            </div>
+                        </button>
+                        <button id="printCompactBtn" class="w-full flex items-center p-3 border border-slate-200 rounded-lg hover:border-emerald-500 hover:bg-emerald-50 transition-all text-left group">
+                            <i class="fas fa-list text-2xl text-slate-300 group-hover:text-emerald-500 mr-4"></i>
+                            <div>
+                                <span class="block font-bold text-slate-700 text-sm">Formato Compacto</span>
+                                <span class="block text-xs text-slate-400">Ahorro de papel y tinta</span>
+                            </div>
+                        </button>
+                        <button id="printAccessibleBtn" class="w-full flex items-center p-3 border border-slate-200 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-all text-left group">
+                            <i class="fas fa-glasses text-2xl text-slate-300 group-hover:text-blue-500 mr-4"></i>
+                            <div>
+                                <span class="block font-bold text-slate-700 text-sm">Formato para Lectura Fácil</span>
+                                <span class="block text-xs text-slate-400">Letra grande, márgenes mínimos</span>
+                            </div>
+                        </button>
+                    </div>
+                </div>
+                <div class="bg-slate-50 p-3 text-center border-t border-slate-100">
+                    <button id="cancelPrintBtn" class="text-xs font-bold text-slate-500 hover:text-slate-800 uppercase">Cancelar</button>
+                </div>
+            </div>
+        </div>`;
+      document.body.insertAdjacentHTML("beforeend", modalHtml);
+    }
+
+    const modal = document.getElementById("printOptionsModal");
+    const closeFn = () => modal.classList.add("hidden");
+
+    document.getElementById("printModalBackdrop").onclick = closeFn;
+    document.getElementById("cancelPrintBtn").onclick = closeFn;
+
+    document.getElementById("printStandardBtn").onclick = () => {
+      const data = { ...this.document.metadata, id: this.document.id };
+      printDocument(data, this.template, this.decryptedData, "standard");
+      //      this.triggerPrint("standard");
+      closeFn();
+    };
+    document.getElementById("printCompactBtn").onclick = () => {
+      const data = { ...this.document.metadata, id: this.document.id };
+      printDocument(data, this.template, this.decryptedData, "compact");
+      //      this.triggerPrint("compact");
+      closeFn();
+    };
+    document.getElementById("printAccessibleBtn").onclick = () => {
+      const data = { ...this.document.metadata, id: this.document.id };
+      printDocument(data, this.template, this.decryptedData, "accessible");
+      //      this.triggerPrint("accessible"); // Activamos el nuevo modo
+      closeFn();
+    };
+
+    modal.classList.remove("hidden");
   }
 }
