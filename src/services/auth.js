@@ -122,11 +122,13 @@ class AuthService {
         password
       );
 
+      /*
       // 2. Init Lazy (Metadatos)
       await setDoc(doc(this.db, "users", cred.user.uid, "system", "metadata"), {
         vaultConfigured: false,
         createdAt: new Date().toISOString(),
       });
+      */
 
       // 3. Enviar correo (CON LOGGING)
       console.log("📨 Intentando enviar correo de verificación...");
