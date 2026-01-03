@@ -92,73 +92,85 @@ export class UrlElement extends BaseElement {
 
   // --- 3. VISUALIZACIÓN (VIEWER) ---
   renderViewer() {
-    console.log(this.value);
     const url = this.value.url;
     const text = this.value.text;
 
     if (!url) return '<span class="text-slate-300 text-xs italic">--</span>';
 
-    // Generamos un ID único para los eventos de este elemento específico
-    const uniqueId = `media-${this.def.id}-${Math.floor(Math.random() * 1000)}`;
+    // Generamos un ID único para esta instancia específica de la celda
+    const instanceId = `url-inst-${this.def.id}-${Math.random()
+      .toString(36)
+      .substr(2, 9)}`;
 
-    // 🎵 A. AUDIO (MP3/WAV)
+    let content = "";
+
+    // 🎵 A. AUDIO
     if (url.match(/\.(mp3|wav|ogg|m4a)$/i)) {
       const fileName = url.split("/").pop().replace(/%20/g, " ");
-      return `
-        <div class="flex items-center gap-3 group mt-1" id="${uniqueId}">
-            <button type="button" 
-                    class="js-play-audio w-9 h-9 flex items-center justify-center rounded-full border border-slate-200 bg-pink-50 group-hover:bg-pink-100 text-pink-500 transition-all shadow-sm hover:scale-105 cursor-pointer" 
-                    data-src="${url}" data-text="${text}"
-                    title="Reproducir">
-               <i class="fas fa-play ml-0.5"></i>
-            </button>
-            <div class="flex flex-col">
-                <span class="text-xs font-bold text-slate-700">${text}</span>
-                <span class="text-[10px] text-slate-500 truncate max-w-[200px]">${fileName}</span>
-            </div>
-        </div>`;
+      content = `
+      <div class="flex items-center gap-3 group mt-1">
+          <button type="button" 
+                  class="js-play-audio w-9 h-9 flex items-center justify-center rounded-full border border-slate-200 bg-pink-50 group-hover:bg-pink-100 text-pink-500 transition-all shadow-sm hover:scale-105 cursor-pointer" 
+                  data-src="${url}" data-text="${text}">
+             <i class="fas fa-play ml-0.5"></i>
+          </button>
+          <div class="flex flex-col">
+              <span class="text-xs font-bold text-slate-700">${text}</span>
+              <span class="text-[10px] text-slate-500 truncate max-w-[200px]">${fileName}</span>
+          </div>
+      </div>`;
     }
-
     // 🖼️ B. IMAGEN
-    if (url.match(/\.(jpeg|jpg|gif|png|webp)$/i)) {
-      return `
-        <div class="mt-2" id="${uniqueId}">
-            <div class="relative group w-fit cursor-pointer js-view-image" data-src="${url}">
-                <img src="${url}" class="max-w-full h-auto max-h-48 rounded-lg border border-slate-200 shadow-sm transition-transform hover:scale-[1.02]" loading="lazy" alt="Preview">
-                <div class="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors rounded-lg flex items-center justify-center">
-                    <i class="fas fa-expand text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow-md"></i>
-                </div>
-            </div>
-        </div>`;
+    else if (url.match(/\.(jpeg|jpg|gif|png|webp)$/i)) {
+      content = `
+      <div class="mt-2">
+          <div class="relative group w-fit cursor-pointer js-view-image" data-src="${url}">
+              <img src="${url}" class="max-w-full h-auto max-h-48 rounded-lg border border-slate-200 shadow-sm transition-transform hover:scale-[1.02]" loading="lazy">
+              <div class="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors rounded-lg flex items-center justify-center">
+                  <i class="fas fa-expand text-white opacity-0 group-hover:opacity-100 transition-opacity"></i>
+              </div>
+          </div>
+      </div>`;
     }
-
     // 🔗 C. LINK NORMAL
-    return `
-      <a href="${url}" target="_blank" class="inline-flex items-center gap-2 text-indigo-600 hover:text-indigo-800 hover:underline transition-colors font-medium break-all bg-indigo-50 px-3 py-1.5 rounded-lg border border-indigo-100">
+    else {
+      content = `
+      <a href="${url}" target="_blank" class="inline-flex items-center gap-2 text-indigo-600 ...">
         <i class="fas fa-external-link-alt text-xs"></i> ${text}
       </a>`;
+    }
+
+    // Envolvemos todo en un div con el ID único
+    return `<div id="${instanceId}">${content}</div>`;
   }
 
-  // --- 🔥 INTERACTIVIDAD DEL VIEWER (Aquí sucede la magia del modal/player) ---
   postRenderViewer(container) {
-    // 1. Manejo de AUDIO
-    const playBtn = container.querySelector(".js-play-audio");
+    // 1. Primero localizamos el contenedor único de ESTA instancia de UrlElement
+    // Buscamos dentro del container (que es la tabla) el ID que generamos en renderViewer
+    // Nota: Para que esto funcione, necesitamos persistir el instanceId o usar un selector relativo
+    // Una forma limpia es buscar por el data-src si es audio:
+
+    const url = this.value.url;
+    if (!url) return;
+
+    // Opción recomendada: Buscar el botón que tenga exactamente el URL de este elemento
+    const playBtn = container.querySelector(
+      `.js-play-audio[data-src="${url}"]`
+    );
     if (playBtn) {
       playBtn.addEventListener("click", (e) => {
         e.preventDefault();
-        const src = playBtn.dataset.src;
-        const text = playBtn.dataset.text;
-        this.openFloatingPlayer(src, text);
+        this.openFloatingPlayer(url, this.value.text);
       });
     }
 
-    // 2. Manejo de IMAGEN
-    const imgTrigger = container.querySelector(".js-view-image");
+    const imgTrigger = container.querySelector(
+      `.js-view-image[data-src="${url}"]`
+    );
     if (imgTrigger) {
       imgTrigger.addEventListener("click", (e) => {
         e.preventDefault();
-        const src = imgTrigger.dataset.src;
-        this.openImageModal(src);
+        this.openImageModal(url);
       });
     }
   }
